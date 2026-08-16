@@ -1,0 +1,260 @@
+/* ─────────────────────── полоса дней недели ─────────────────────── */
+
+.week-strip {
+  display: flex;
+  gap: 6px;
+  padding: 0 14px 14px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.week-strip::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.day-chip {
+  display: flex;
+  flex: 0 0 44px;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 7px 0 6px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--hairline-quiet);
+  transition: background 120ms ease-out;
+}
+
+.day-chip[aria-pressed='true'] {
+  background: var(--tint-14);
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+.day-chip__weekday {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--color-neutral-600);
+}
+
+.day-chip__number {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.day-chip[aria-pressed='true'] .day-chip__number {
+  color: var(--color-accent-300);
+}
+
+.day-chip__indicator {
+  width: 16px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+/* ─────────────────────── карточка колец ─────────────────────── */
+
+.rings {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.rings__svg {
+  flex: 0 0 116px;
+}
+
+.rings__center-value {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.7px;
+  fill: var(--color-text);
+}
+
+.rings__center-label {
+  font-size: 9px;
+  fill: var(--color-neutral-600);
+}
+
+.rings__lines {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.rings__line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rings__line-label {
+  font-size: 11.5px;
+  color: var(--color-neutral-600);
+}
+
+.rings__line-value {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.macro-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 11px;
+  margin-top: 15px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-neutral-900);
+}
+
+.macro-grid__label {
+  font-size: 11px;
+  color: var(--color-neutral-500);
+}
+
+.macro-grid__norm {
+  font-size: 10px;
+  color: var(--color-neutral-600);
+}
+
+.macro-grid__value {
+  margin-top: 5px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ─────────────────────── кнопки действий ─────────────────────── */
+
+.diary-actions {
+  display: flex;
+  gap: 8px;
+  padding: 0 14px 15px;
+}
+
+.diary-actions .btn {
+  flex: 1;
+}
+
+/* ─────────────────────── лента дня ─────────────────────── */
+
+.timeline {
+  position: relative;
+  padding: 0 14px;
+}
+
+/* Линия таймлайна затухает на конце — правило дизайн-системы. */
+.timeline::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  bottom: 6px;
+  left: 32px;
+  width: 1px;
+  background: linear-gradient(
+    var(--color-neutral-900),
+    var(--color-neutral-900) 85%,
+    transparent
+  );
+}
+
+.event {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+
+.event__gutter {
+  display: flex;
+  flex: 0 0 36px;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.event__badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: var(--color-neutral-900);
+  box-shadow: 0 0 0 1px var(--color-neutral-800);
+}
+
+.event__badge--workout {
+  background: var(--tint-14);
+  box-shadow: 0 0 0 1px var(--color-accent-700);
+}
+
+.event__time {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--color-neutral-700);
+}
+
+.event__card {
+  flex: 1;
+  min-width: 0;
+  padding: 11px 13px;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--hairline-quiet);
+  text-align: left;
+  transition: background 120ms ease-out;
+}
+
+.event__card--food {
+  box-shadow: var(--hairline);
+}
+
+button.event__card:hover {
+  background: var(--color-neutral-900);
+}
+
+.event__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.event__title {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.1px;
+}
+
+.event__kcal {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.event__caption {
+  margin-top: 3px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--color-neutral-600);
+  text-wrap: pretty;
+}
+
+.event__tags {
+  display: flex;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.event__tag {
+  padding: 2.5px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-neutral-900);
+  box-shadow: 0 0 0 1px var(--color-neutral-800);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+}
