@@ -182,7 +182,7 @@ export interface Deficit {
 
 export interface DayReport {
   day: string
-  totals: DayTotals & { meals_count: number; workouts_count: number }
+  totals: Omit<DayTotals, 'calories_remaining'> & { meals_count: number; workouts_count: number }
   norms: Norms
   macros: MacroRow[]
   micros: NutrientRow[]

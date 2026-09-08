@@ -53,6 +53,13 @@ export function ParamsSheet({ onClose }: { onClose: () => void }) {
   const [formError, setFormError] = useState<string | null>(null)
 
   const levels = reference?.activity_levels ?? []
+  // Сервер принимает любой коэффициент 1.2–1.9, а select знает только уровни справочника —
+  // прижимаем к ближайшему, иначе select молча показывает первый пункт.
+  const selectedActivity = levels.length
+    ? levels.reduce((best, level) =>
+        Math.abs(level.factor - activity) < Math.abs(best.factor - activity) ? level : best,
+      ).factor
+    : activity
 
   const onSave = () => {
     const problem =
@@ -71,7 +78,7 @@ export function ParamsSheet({ onClose }: { onClose: () => void }) {
         age: Math.round(Number(age.replace(',', '.'))),
         height_cm: Number(height.replace(',', '.')),
         weight_kg: Number(weight.replace(',', '.')),
-        activity,
+        activity: selectedActivity,
         body_fat_pct: bodyFat.trim() ? Number(bodyFat.replace(',', '.')) : null,
       },
       { onSuccess: onClose },
@@ -122,7 +129,7 @@ export function ParamsSheet({ onClose }: { onClose: () => void }) {
         <h3 className="section-label sheet-section__label">Уровень активности</h3>
         <label className="select-row">
           <select
-            value={activity}
+            value={selectedActivity}
             onChange={(event) => setActivity(Number(event.target.value))}
             aria-label="Уровень активности"
           >

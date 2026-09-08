@@ -186,6 +186,8 @@ export function Stepper({
         value={value}
         aria-label={label}
         onChange={(event) => {
+          // Пустая строка даёт Number('') === 0 — стирание поля сбрасывало бы граммы в ноль.
+          if (event.target.value === '') return
           const next = Number(event.target.value)
           if (!Number.isNaN(next)) set(next)
         }}

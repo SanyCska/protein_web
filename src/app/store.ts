@@ -15,8 +15,12 @@ interface UiState {
   mealId: number | null
   reportPeriod: 'day' | PeriodRange
   progressRange: PeriodRange
+  /** Какой день считался сегодняшним при последней проверке. */
+  today: string
 
   setTab: (tab: Tab) => void
+  /** Telegram держит мини-апп в фоне сутками — после полуночи «сегодня» надо пересчитать. */
+  syncToday: () => void
   setDay: (day: string) => void
   openSheet: (sheet: SheetKind, mealId?: number) => void
   closeSheet: () => void
@@ -31,9 +35,18 @@ export const useUi = create<UiState>((set) => ({
   mealId: null,
   reportPeriod: 'day',
   progressRange: 'week',
+  today: today(),
 
   // Переключение таба закрывает открытый шит — иначе он повиснет над чужим экраном.
   setTab: (tab) => set({ tab, sheet: null, mealId: null }),
+  syncToday: () =>
+    set((state) => {
+      const now = today()
+      if (now === state.today) return {}
+      // Если пользователь смотрел «сегодня», переводим его на новый день; выбранный
+      // вручную прошлый день не трогаем.
+      return state.day === state.today ? { today: now, day: now } : { today: now }
+    }),
   setDay: (day) => set({ day }),
   openSheet: (sheet, mealId) => set({ sheet, mealId: mealId ?? null }),
   closeSheet: () => set({ sheet: null, mealId: null }),

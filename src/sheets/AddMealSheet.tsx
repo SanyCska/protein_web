@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { useAddMeal, useParseMeal, useProducts } from '@/api/hooks'
 import type { MealItem, Product } from '@/api/types'
@@ -58,10 +58,21 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
 
   const parseMeal = useParseMeal()
   const addMeal = useAddMeal(day)
-  const { data: products = [], isFetching } = useProducts(query, mode === 'search')
+  // Поиск идёт по каждому нажатию — сглаживаем, чтобы не слать запрос на каждую букву.
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 250)
+    return () => window.clearTimeout(timer)
+  }, [query])
+  const {
+    data: products = [],
+    isFetching,
+    error: searchError,
+  } = useProducts(debouncedQuery, mode === 'search')
 
   const time = nowTime()
-  const totals = items ? totalsFromItems(items) : null
+  // Разобранный ИИ состав относится только к режиму ИИ — в ручном режиме сохраняется форма.
+  const totals = mode === 'ai' && items ? totalsFromItems(items) : null
 
   const saveDisabled =
     addMeal.isPending ||
@@ -120,7 +131,7 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
   }
 
   const addProduct = (product: Product) => {
-    const grams = product.portion_g ?? 100
+    // КБЖУ продукта — на его сохранённую порцию; если порция неизвестна, не выдумываем 100 г.
     addMeal.mutate(
       {
         name: product.name,
@@ -129,7 +140,7 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
         fat_g: product.fat_g,
         carbs_g: product.carbs_g,
         fiber_g: product.fiber_g,
-        portion_g: grams,
+        portion_g: product.portion_g,
         micros: product.micros,
         meal_type: guessMealType(time),
         eaten_at: time,
@@ -287,6 +298,7 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
             <Icon name="magnifying-glass" size={15} color="var(--color-neutral-600)" />
             <input
               value={query}
+              maxLength={100}
               placeholder="Поиск по своим продуктам"
               onChange={(event) => setQuery(event.target.value)}
             />
@@ -294,7 +306,8 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
 
           <div className="sheet-section">
             {isFetching && <p className="footnote">Ищем…</p>}
-            {!isFetching && products.length === 0 && (
+            {searchError && <ErrorNote message={searchError.message} />}
+            {!isFetching && !searchError && products.length === 0 && (
               <p className="footnote">
                 Ничего не нашлось. Продукты появляются здесь, когда вы отмечаете «сохранить как своё
                 блюдо» при добавлении.

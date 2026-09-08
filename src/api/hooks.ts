@@ -1,10 +1,12 @@
 import {
+  keepPreviousData,
   useMutation,
   useQuery,
   useQueryClient,
   type UseMutationOptions,
 } from '@tanstack/react-query'
 
+import { mondayOf } from '@/lib/format'
 import { api } from './client'
 import type { MealInput, PeriodRange, Profile, Supplement } from './types'
 
@@ -12,7 +14,9 @@ export const keys = {
   profile: ['profile'] as const,
   reference: ['reference'] as const,
   day: (day: string) => ['day', day] as const,
-  weekStrip: (day: string) => ['weekStrip', day] as const,
+  meal: (id: number) => ['meal', id] as const,
+  /** Ключ — понедельник недели: тап по соседнему дню не должен перезапрашивать ту же полосу. */
+  weekStrip: (day: string) => ['weekStrip', mondayOf(day)] as const,
   dayReport: (day: string) => ['dayReport', day] as const,
   periodReport: (range: PeriodRange, end: string) => ['periodReport', range, end] as const,
   progress: (range: PeriodRange, end: string) => ['progress', range, end] as const,
@@ -30,11 +34,20 @@ export function useReference() {
 }
 
 export function useDay(day: string) {
-  return useQuery({ queryKey: keys.day(day), queryFn: () => api.day(day) })
+  // Пока грузится новый день, показываем предыдущий — иначе весь экран мигает скелетоном.
+  return useQuery({
+    queryKey: keys.day(day),
+    queryFn: () => api.day(day),
+    placeholderData: keepPreviousData,
+  })
 }
 
 export function useWeekStrip(day: string) {
-  return useQuery({ queryKey: keys.weekStrip(day), queryFn: () => api.weekStrip(day) })
+  return useQuery({
+    queryKey: keys.weekStrip(day),
+    queryFn: () => api.weekStrip(day),
+    placeholderData: keepPreviousData,
+  })
 }
 
 export function useDayReport(day: string) {
@@ -70,13 +83,17 @@ export function useProducts(query: string, enabled = true) {
 
 /**
  * Любая правка данных меняет и ленту дня, и отчёты, и графики — считать вручную,
- * что именно протухло, слишком легко забыть. Сбрасываем всё, кроме справочников.
+ * что именно протухло, слишком легко забыть. Сбрасываем всё, кроме справочников
+ * и деталей блюда: их обновляет сам ответ PATCH, а после DELETE перезапрос
+ * ещё открытого шита дал бы гарантированный 404.
  */
+const UNTOUCHED_KEYS = new Set(['reference', 'meal'])
+
 function useInvalidateAll() {
   const queryClient = useQueryClient()
   return () =>
     queryClient.invalidateQueries({
-      predicate: (query) => query.queryKey[0] !== 'reference',
+      predicate: (query) => !UNTOUCHED_KEYS.has(String(query.queryKey[0])),
     })
 }
 
@@ -100,8 +117,11 @@ export function useAddMeal(day: string) {
 }
 
 export function useUpdateMeal() {
-  return useDataMutation((vars: { id: number; payload: Partial<MealInput> & { day?: string } }) =>
-    api.updateMeal(vars.id, vars.payload),
+  const queryClient = useQueryClient()
+  return useDataMutation(
+    (vars: { id: number; payload: Partial<MealInput> & { day?: string } }) =>
+      api.updateMeal(vars.id, vars.payload),
+    { onSuccess: (meal) => queryClient.setQueryData(keys.meal(meal.id), meal) },
   )
 }
 

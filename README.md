@@ -49,6 +49,28 @@ npm run typecheck  # проверка типов
 Плюс четыре нижних шита: добавление блюда (ИИ-разбор / поиск / вручную), деталь блюда
 с правкой граммовки, физнагрузка, новая добавка.
 
+## Деплой
+
+Пуш в `main` запускает workflow: тесты и типы → Docker-образ со статикой (Vite + nginx)
+в GHCR → SSH на сервер, где перезапускается только контейнер `web`.
+
+Compose-стек и `.env` живут на сервере и приезжают из репозитория бота
+[protein_counter](https://github.com/SanyCska/protein_counter) — он должен быть
+задеплоен хотя бы раз, иначе `docker compose pull web` не найдёт сервис.
+TLS и маршрут `/api` держит Caddy из того же стека, поэтому фронт и API
+на одном origin и `VITE_API_BASE` в проде менять не нужно.
+
+Секреты репозитория (Settings → Secrets and variables → Actions) — те же значения,
+что у бэкенда: `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`, `DEPLOY_PATH`
+и `SSH_PORT`, если SSH не на 22. Ключей приложения фронту не нужно:
+пользователь определяется подписью Telegram, которую проверяет API.
+
+Образ можно собрать и локально:
+
+```bash
+docker build -t protein-web . && docker run --rm -p 8080:80 protein-web
+```
+
 ## Структура
 
 ```

@@ -91,3 +91,24 @@ input[type='number']::-webkit-inner-spin-button {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Экран фатальной ошибки (ErrorBoundary) */
+.fatal {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 32px 20px;
+  color: var(--color-neutral-100);
+}
+
+.fatal__title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.fatal__text {
+  font-size: 13px;
+  color: var(--color-neutral-400);
+  word-break: break-word;
+}

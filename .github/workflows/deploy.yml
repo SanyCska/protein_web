@@ -1,0 +1,99 @@
+# Деплой фронта мини-аппа: тесты → образ в GHCR → SSH на сервер, рестарт только
+# контейнера web. Compose-стек и .env живут в DEPLOY_PATH на сервере и приезжают
+# из репозитория protein_counter — этот workflow требует, чтобы бэкенд хотя бы
+# раз был задеплоен оттуда. Секреты и порядок первого запуска — DEPLOY.md бэкенда.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/sanycska/protein-web
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set SSH port
+        id: ssh_port
+        run: |
+          P="${{ secrets.SSH_PORT }}"
+          if [ -z "$P" ]; then
+            echo "value=22" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=$P" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure SSH
+        env:
+          PORT: ${{ steps.ssh_port.outputs.value }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "$PORT" -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Pull image and restart web
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          PORT: ${{ steps.ssh_port.outputs.value }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Токен уходит через stdin, а не в аргументах команды: так он не светится
+        # в списке процессов сервера. Логин временный — сразу после pull выходим,
+        # чтобы на сервере не оседали протухающие креды GHCR.
+        run: |
+          printf '%s' "$GHCR_TOKEN" | ssh -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=yes -p "$PORT" \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            "set -e
+             cd '${DEPLOY_PATH}'
+             docker login ghcr.io -u '${GHCR_USER}' --password-stdin
+             docker compose pull web
+             docker compose up -d web
+             docker logout ghcr.io
+             docker image prune -f"

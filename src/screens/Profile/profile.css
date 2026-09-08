@@ -96,19 +96,40 @@
 }
 
 .template-tile {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 11px 12px;
+  position: relative;
   border-radius: var(--radius-tile);
   background: var(--color-neutral-900);
   box-shadow: 0 0 0 1px var(--color-neutral-800);
-  text-align: left;
   transition: box-shadow 120ms ease-out;
 }
 
 .template-tile:hover {
   box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+.template-tile__main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 11px 32px 11px 12px;
+  border-radius: var(--radius-tile);
+  text-align: left;
+}
+
+.template-tile__remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  padding: 6px;
+  border-radius: 999px;
+  color: var(--color-neutral-600);
+}
+
+.template-tile__remove:hover {
+  color: var(--color-accent-300);
 }
 
 .template-tile__name {

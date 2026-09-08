@@ -19,15 +19,29 @@ export function DiaryScreen() {
   const openSheet = useUi((state) => state.openSheet)
   const { data, isLoading, error } = useDay(day)
 
-  if (isLoading) return <LoadingScreen label="Загружаем дневник" />
-  if (error) return <ErrorNote message={error.message} />
+  const strip = <WeekStrip day={day} onSelect={setDay} />
+
+  if (isLoading)
+    return (
+      <>
+        {strip}
+        <LoadingScreen label="Загружаем дневник" />
+      </>
+    )
+  if (error)
+    return (
+      <>
+        {strip}
+        <ErrorNote message={error.message} />
+      </>
+    )
   if (!data) return null
 
   const eventCount = data.meals.length + data.workouts.length + data.supplements.length
 
   return (
     <>
-      <WeekStrip day={day} onSelect={setDay} />
+      {strip}
 
       <RingsCard totals={data.totals} norms={data.norms} />
 

@@ -6,7 +6,8 @@ interface TelegramWebApp {
   ready: () => void
   expand: () => void
   close: () => void
-  BackButton: {
+  /** Появилась в Bot API 6.1 — на старых клиентах объекта нет. */
+  BackButton?: {
     show: () => void
     hide: () => void
     onClick: (cb: () => void) => void
@@ -52,13 +53,13 @@ export function haptic(style: 'light' | 'medium' | 'heavy' = 'light'): void {
 }
 
 /** Показать системную кнопку «назад», пока открыт шит. Возвращает функцию отписки. */
-export function useBackButtonHandler(handler: () => void): () => void {
-  const app = webApp()
-  if (!app) return () => {}
-  app.BackButton.onClick(handler)
-  app.BackButton.show()
+export function bindBackButton(handler: () => void): () => void {
+  const button = webApp()?.BackButton
+  if (!button) return () => {}
+  button.onClick(handler)
+  button.show()
   return () => {
-    app.BackButton.offClick(handler)
-    app.BackButton.hide()
+    button.offClick(handler)
+    button.hide()
   }
 }

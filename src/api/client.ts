@@ -16,7 +16,8 @@ import type {
   WorkoutTemplate,
 } from './types'
 
-const BASE = import.meta.env.VITE_API_BASE ?? '/api'
+// Пустая переменная — тоже «не задано»; хвостовой слэш убираем, чтобы не получить `//diary`.
+const BASE = (import.meta.env.VITE_API_BASE || '/api').replace(/\/+$/, '')
 
 /** ID пользователя для разработки вне Telegram; в проде игнорируется сервером. */
 const DEV_USER_ID = import.meta.env.VITE_DEV_USER_ID ?? '1'
@@ -47,7 +48,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     response = await fetch(`${BASE}${path}`, {
       ...init,
       headers: {
-        'Content-Type': 'application/json',
+        // Content-Type только там, где есть тело: на GET он лишь провоцирует CORS-preflight.
+        ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
         ...authHeaders(),
         ...init?.headers,
       },
@@ -71,7 +73,8 @@ function safeJson(text: string): unknown {
   try {
     return JSON.parse(text)
   } catch {
-    return text
+    // Не JSON — обычно HTML-страница ошибки от прокси; показывать её пользователю нечего.
+    return null
   }
 }
 

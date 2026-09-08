@@ -18,7 +18,7 @@ import {
   Tile,
 } from '@/components/primitives'
 import { haptic } from '@/api/telegram'
-import { minutesLabel, num } from '@/lib/format'
+import { minutesLabel, nowTime, num, today } from '@/lib/format'
 import type { Goal } from '@/api/types'
 import './profile.css'
 
@@ -35,7 +35,6 @@ const GOAL_NOTE: Record<Goal, string> = {
 }
 
 export function ProfileScreen() {
-  const day = useUi((state) => state.day)
   const openSheet = useUi((state) => state.openSheet)
 
   const { data: profile, isLoading, error } = useProfile()
@@ -45,7 +44,8 @@ export function ProfileScreen() {
   const saveProfile = useSaveProfile()
   const deleteSupplement = useDeleteSupplement()
   const deleteTemplate = useDeleteTemplate()
-  const addWorkout = useAddWorkout(day)
+  // Из профиля тренировка всегда идёт в сегодняшний день: выбранный в дневнике день здесь не виден.
+  const addWorkout = useAddWorkout(today())
 
   if (isLoading) return <LoadingScreen label="Загружаем профиль" />
   if (error) return <ErrorNote message={error.message} />
@@ -172,35 +172,51 @@ export function ProfileScreen() {
       </Card>
 
       <Card>
-        <CardHead title="Шаблоны нагрузки" meta="тап — добавить в день" />
+        <CardHead title="Шаблоны нагрузки" meta="тап — добавить в сегодня" />
         <div className="template-grid">
           {templates.map((template) => (
-            <button
-              key={template.id}
-              type="button"
-              className="template-tile"
-              onClick={() => {
-                haptic()
-                addWorkout.mutate({ kind: template.kind, minutes: template.minutes })
-              }}
-              onContextMenu={(event) => {
-                event.preventDefault()
-                deleteTemplate.mutate(template.id)
-              }}
-            >
-              <Icon name={template.icon} size={16} color="var(--color-accent)" />
-              <span className="template-tile__name">{template.name}</span>
-              <span className="template-tile__meta">
-                {minutesLabel(template.minutes)} · −{num(template.kcal)}
-              </span>
-            </button>
+            <div key={template.id} className="template-tile">
+              <button
+                type="button"
+                className="template-tile__main"
+                disabled={addWorkout.isPending}
+                onClick={() => {
+                  haptic()
+                  addWorkout.mutate({
+                    kind: template.kind,
+                    minutes: template.minutes,
+                    done_at: nowTime(),
+                  })
+                }}
+              >
+                <Icon name={template.icon} size={16} color="var(--color-accent)" />
+                <span className="template-tile__name">{template.name}</span>
+                <span className="template-tile__meta">
+                  {minutesLabel(template.minutes)} · −{num(template.kcal)}
+                </span>
+              </button>
+              {/* Долгий тап в iOS-вебвью не даёт contextmenu — удаление только явной кнопкой. */}
+              <button
+                type="button"
+                className="template-tile__remove"
+                aria-label={`Удалить шаблон ${template.name}`}
+                onClick={() => {
+                  if (window.confirm(`Удалить шаблон «${template.name}»?`)) {
+                    deleteTemplate.mutate(template.id)
+                  }
+                }}
+              >
+                <Icon name="trash" size={13} />
+              </button>
+            </div>
           ))}
         </div>
         {addWorkout.isError && <ErrorNote message={addWorkout.error.message} />}
-        <p className="footnote">
-          Расход пересчитывается по вашему текущему весу. Долгий тап (или правый клик) удаляет
-          шаблон.
-        </p>
+        {addWorkout.isSuccess && (
+          <p className="footnote">Тренировка добавлена в сегодняшний день.</p>
+        )}
+        {deleteTemplate.isError && <ErrorNote message={deleteTemplate.error.message} />}
+        <p className="footnote">Расход пересчитывается по вашему текущему весу.</p>
       </Card>
     </>
   )

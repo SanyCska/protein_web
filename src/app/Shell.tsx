@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 
 import { useProfile } from '@/api/hooks'
 import { isInsideTelegram } from '@/api/telegram'
@@ -29,7 +29,16 @@ export function Shell() {
   const tab = useUi((state) => state.tab)
   const day = useUi((state) => state.day)
   const setTab = useUi((state) => state.setTab)
+  const syncToday = useUi((state) => state.syncToday)
   const { data: profile } = useProfile()
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') syncToday()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [syncToday])
 
   // Скролл общий на все табы, поэтому запоминаем позицию каждого сами — иначе
   // переход на другой таб открывает его в середине чужого экрана.

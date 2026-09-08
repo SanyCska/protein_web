@@ -46,6 +46,12 @@ export function addDays(day: string, delta: number): string {
 }
 
 /** Индекс дня недели с понедельника (0) — в JS неделя начинается с воскресенья. */
+/** Понедельник недели, в которую попадает день. */
+export function mondayOf(day: string): string {
+  const date = parseDay(day)
+  return toDayString(new Date(date.getFullYear(), date.getMonth(), date.getDate() - weekdayIndex(date)))
+}
+
 export function weekdayIndex(date: Date): number {
   return (date.getDay() + 6) % 7
 }

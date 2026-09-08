@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 
-import { useBackButtonHandler } from '@/api/telegram'
+import { bindBackButton } from '@/api/telegram'
 import './ui.css'
 
 /**
@@ -32,7 +32,7 @@ export function Sheet({
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [onClose])
 
-  useEffect(() => useBackButtonHandler(onClose), [onClose])
+  useEffect(() => bindBackButton(onClose), [onClose])
 
   useEffect(() => {
     panelRef.current?.focus()

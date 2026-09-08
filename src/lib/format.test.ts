@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   addDays,
   entriesLabel,
+  mondayOf,
   longDate,
   nutrientValue,
   parseDay,
@@ -60,5 +61,18 @@ describe('entriesLabel', () => {
     expect(entriesLabel(7)).toBe('7 записей')
     expect(entriesLabel(11)).toBe('11 записей')
     expect(entriesLabel(22)).toBe('22 записи')
+  })
+})
+
+describe('mondayOf', () => {
+  it('returns the same day for a Monday', () => {
+    expect(mondayOf('2026-09-07')).toBe('2026-09-07')
+  })
+  it('walks back to Monday from any weekday', () => {
+    expect(mondayOf('2026-09-08')).toBe('2026-09-07')
+    expect(mondayOf('2026-09-13')).toBe('2026-09-07')
+  })
+  it('crosses a month boundary', () => {
+    expect(mondayOf('2026-09-01')).toBe('2026-08-31')
   })
 })

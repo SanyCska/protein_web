@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client'
 
 import { ApiError } from '@/api/client'
 import { initTelegram } from '@/api/telegram'
+import { ErrorBoundary } from '@/app/ErrorBoundary'
 import { Shell } from '@/app/Shell'
 import '@/styles/base.css'
 
@@ -28,8 +29,10 @@ if (!container) throw new Error('Не найден #root')
 
 createRoot(container).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <Shell />
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <Shell />
+      </QueryClientProvider>
+    </ErrorBoundary>
   </StrictMode>,
 )

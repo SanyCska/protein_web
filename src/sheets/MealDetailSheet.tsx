@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { api } from '@/api/client'
-import { useDeleteMeal, useProfile, useUpdateMeal } from '@/api/hooks'
+import { keys, useDeleteMeal, useProfile, useReference, useUpdateMeal } from '@/api/hooks'
 import type { MealItem } from '@/api/types'
 import { Sheet } from '@/components/Sheet'
 import { ErrorNote, NutrientRow, Stepper, Tile } from '@/components/primitives'
@@ -33,10 +33,10 @@ function contributionRows(
 
 export function MealDetailSheet({ mealId, onClose }: { mealId: number; onClose: () => void }) {
   const { data: meal, isLoading, error } = useQuery({
-    queryKey: ['meal', mealId],
+    queryKey: keys.meal(mealId),
     queryFn: () => api.meal(mealId),
   })
-  const { data: reference } = useQuery({ queryKey: ['reference'], queryFn: api.reference })
+  const { data: reference } = useReference()
   const { data: profile } = useProfile()
   const updateMeal = useUpdateMeal()
   const deleteMeal = useDeleteMeal()
