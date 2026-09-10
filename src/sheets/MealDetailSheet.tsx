@@ -2,15 +2,10 @@ import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { api } from '@/api/client'
-import {
-  keys,
-  useAddProduct,
-  useDeleteMeal,
-  useProfile,
-  useReference,
-  useUpdateMeal,
-} from '@/api/hooks'
-import type { MealItem, PortionUnit } from '@/api/types'
+import { keys, useDeleteMeal, useProfile, useReference, useUpdateMeal } from '@/api/hooks'
+import type { MealType } from '@/api/types'
+import { Icon } from '@/components/Icon'
+import { MicrosEditor } from '@/components/MicrosEditor'
 import { Sheet } from '@/components/Sheet'
 import {
   ErrorNote,
@@ -20,9 +15,13 @@ import {
   Stepper,
   Tile,
 } from '@/components/primitives'
-import { num, roundTo, shortDate, toNumber } from '@/lib/format'
+import { num, shortDate, toNumber } from '@/lib/format'
+import { formFromMeal, mealPatch, type MealForm } from '@/lib/meal-edit'
 import { MEAL_TYPE_LABELS, totalsFromItems } from '@/lib/nutrition'
+import { MealProductSave } from './MealProductSave'
 import './sheets.css'
+
+const MEAL_TYPES = Object.entries(MEAL_TYPE_LABELS) as [MealType, string][]
 
 /** Микронутриенты блюда, отсортированные по вкладу в дневную норму. */
 function contributionRows(
@@ -35,12 +34,7 @@ function contributionRows(
     .map((item) => {
       const value = micros[item.key] ?? 0
       const norm = norms[item.key] ?? 0
-      return {
-        ...item,
-        value,
-        norm,
-        pct: norm > 0 ? Math.round((value / norm) * 100) : 0,
-      }
+      return { ...item, value, norm, pct: norm > 0 ? Math.round((value / norm) * 100) : 0 }
     })
     .sort((a, b) => b.pct - a.pct)
 }
@@ -54,23 +48,11 @@ export function MealDetailSheet({ mealId, onClose }: { mealId: number; onClose: 
   const { data: profile } = useProfile()
   const updateMeal = useUpdateMeal()
   const deleteMeal = useDeleteMeal()
-  const addProduct = useAddProduct()
 
-  const [items, setItems] = useState<MealItem[] | null>(null)
-  // Форма «в свои продукты»: своё название и своя порция, чтобы из «Обеда» на 640 ккал
-  // получился продукт «Творог, 100 г», а не вся тарелка целиком.
-  const [saveOpen, setSaveOpen] = useState(false)
-  const [productName, setProductName] = useState('')
-  const [portion, setPortion] = useState('')
-  const [portionUnit, setPortionUnit] = useState<PortionUnit>('г')
+  const [form, setForm] = useState<MealForm | null>(null)
 
   useEffect(() => {
-    if (!meal) return
-    setItems(meal.items)
-    setProductName(meal.name)
-    setPortionUnit(meal.portion_unit)
-    const basis = meal.items.length ? totalsFromItems(meal.items).portion_g : meal.portion_g
-    setPortion(basis ? String(Math.round(basis)) : '')
+    if (meal) setForm(formFromMeal(meal))
   }, [meal])
 
   if (isLoading) {
@@ -87,53 +69,25 @@ export function MealDetailSheet({ mealId, onClose }: { mealId: number; onClose: 
       </Sheet>
     )
   }
-  if (!meal) return null
+  if (!meal || !form) return null
 
-  const hasComposition = items !== null && items.length > 0
+  const patch = (fields: Partial<MealForm>) => setForm((current) => current && { ...current, ...fields })
+
+  const items = form.items
   // Пока пользователь двигает степперы, цифры пересчитываются локально —
   // ждать ответа сервера на каждый шаг было бы заметно медленно.
-  const computed = hasComposition ? totalsFromItems(items) : null
+  const computed = items ? totalsFromItems(items) : null
   const shown = computed ?? {
-    calories_kcal: meal.calories_kcal,
-    protein_g: meal.protein_g,
-    fat_g: meal.fat_g,
-    carbs_g: meal.carbs_g,
-    micros: meal.micros,
+    calories_kcal: toNumber(form.kcal) ?? meal.calories_kcal,
+    protein_g: toNumber(form.protein) ?? meal.protein_g,
+    fat_g: toNumber(form.fat) ?? meal.fat_g,
+    carbs_g: toNumber(form.carbs) ?? meal.carbs_g,
+    fiber_g: toNumber(form.fiber) ?? meal.fiber_g,
+    micros: form.micros,
   }
 
-  const changed =
-    hasComposition &&
-    JSON.stringify(items.map((item) => item.grams)) !==
-      JSON.stringify(meal.items.map((item) => item.grams))
-
-  // Масса, к которой относятся показанные цифры: сумма состава либо порция записи.
-  const basisPortion = computed?.portion_g || meal.portion_g || 0
-  const targetPortion = toNumber(portion)
-  // Без известной массы записи пересчитывать не от чего — сохраняем как есть.
-  const portionFactor =
-    basisPortion > 0 && targetPortion !== null && targetPortion > 0
-      ? targetPortion / basisPortion
-      : 1
-  const shownFiber = computed?.fiber_g ?? meal.fiber_g
-  const productValues = {
-    calories_kcal: roundTo(shown.calories_kcal * portionFactor, 1),
-    protein_g: roundTo(shown.protein_g * portionFactor, 1),
-    fat_g: roundTo(shown.fat_g * portionFactor, 1),
-    carbs_g: roundTo(shown.carbs_g * portionFactor, 1),
-    fiber_g: roundTo(shownFiber * portionFactor, 1),
-    micros: Object.fromEntries(
-      Object.entries(shown.micros).map(([key, value]) => [key, roundTo(value * portionFactor, 3)]),
-    ),
-  }
-
-  const onSaveProduct = () => {
-    addProduct.mutate({
-      name: productName.trim() || meal.name,
-      ...productValues,
-      portion_g: targetPortion,
-      portion_unit: portionUnit,
-    })
-  }
+  const changes = mealPatch(meal, form)
+  const changed = Object.keys(changes).length > 0
 
   const microRows = contributionRows(
     shown.micros,
@@ -141,15 +95,10 @@ export function MealDetailSheet({ mealId, onClose }: { mealId: number; onClose: 
     reference?.nutrients ?? [],
   )
 
-  const subtitle = [
-    meal.eaten_at,
-    shortDate(meal.day),
-    `${num(shown.calories_kcal)} ккал`,
-  ]
+  const typeLabel = MEAL_TYPE_LABELS[form.mealType] ?? meal.name
+  const subtitle = [form.eatenAt, shortDate(meal.day), `${num(shown.calories_kcal)} ккал`]
     .filter(Boolean)
     .join(' · ')
-
-  const typeLabel = MEAL_TYPE_LABELS[meal.meal_type] ?? meal.name
 
   return (
     <Sheet
@@ -173,8 +122,7 @@ export function MealDetailSheet({ mealId, onClose }: { mealId: number; onClose: 
             style={{ flex: 1 }}
             disabled={!changed || updateMeal.isPending}
             onClick={() =>
-              items &&
-              updateMeal.mutate({ id: meal.id, payload: { items } }, { onSuccess: onClose })
+              updateMeal.mutate({ id: meal.id, payload: changes }, { onSuccess: onClose })
             }
           >
             {changed ? 'Сохранить изменения' : 'Без изменений'}
@@ -182,13 +130,6 @@ export function MealDetailSheet({ mealId, onClose }: { mealId: number; onClose: 
         </>
       }
     >
-      {/* Название показываем, только если оно несёт что-то сверх заголовка-типа. */}
-      {meal.name !== typeLabel && (
-        <p style={{ marginTop: -6, marginBottom: 12, fontSize: 12.5, fontWeight: 500 }}>
-          {meal.name}
-        </p>
-      )}
-
       <div className="meal-macros">
         <Tile label="Ккал" value={num(shown.calories_kcal)} color="var(--color-accent-300)" />
         <Tile label="Белки" value={num(shown.protein_g)} />
@@ -196,108 +137,143 @@ export function MealDetailSheet({ mealId, onClose }: { mealId: number; onClose: 
         <Tile label="Углев." value={num(shown.carbs_g)} />
       </div>
 
-      {hasComposition ? (
+      <Field label="Название" value={form.name} onChange={(name) => patch({ name })} />
+
+      <div className="manual-grid">
+        <Field
+          label="Время"
+          type="time"
+          value={form.eatenAt}
+          mono
+          onChange={(eatenAt) => patch({ eatenAt })}
+        />
+        <label className="field">
+          <span className="field__label">Приём</span>
+          <select
+            className="field__input"
+            value={form.mealType}
+            onChange={(event) => patch({ mealType: event.target.value as MealType })}
+          >
+            {MEAL_TYPES.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {items ? (
         <section className="sheet-section">
           <h3 className="section-label sheet-section__label">Состав</h3>
           {items.map((item, index) => (
-            <div className="composition-row" key={`${item.name}-${index}`}>
-              <span className="composition-row__name">{item.name}</span>
+            <div className="composition-row" key={index}>
+              <input
+                className="composition-row__name composition-row__input"
+                value={item.name}
+                aria-label={`Название: ${item.name}`}
+                onChange={(event) =>
+                  patch({
+                    items: items.map((entry, entryIndex) =>
+                      entryIndex === index ? { ...entry, name: event.target.value } : entry,
+                    ),
+                  })
+                }
+              />
               <Stepper
                 label={`Граммовка: ${item.name}`}
                 value={item.grams}
                 suffix="г"
                 onChange={(grams) =>
-                  setItems((current) =>
-                    (current ?? []).map((entry, entryIndex) =>
+                  patch({
+                    items: items.map((entry, entryIndex) =>
                       entryIndex === index ? { ...entry, grams } : entry,
                     ),
-                  )
+                  })
                 }
               />
+              {/* Последний ингредиент не убираем: без состава итоги считать неоткуда. */}
+              {items.length > 1 && (
+                <button
+                  type="button"
+                  className="parsed-item__remove"
+                  aria-label={`Убрать ${item.name}`}
+                  onClick={() =>
+                    patch({ items: items.filter((_, entryIndex) => entryIndex !== index) })
+                  }
+                >
+                  <Icon name="trash" size={13} />
+                </button>
+              )}
             </div>
           ))}
+          <p className="footnote">
+            КБЖУ и витамины пересчитываются из состава, поэтому править их отдельно нельзя —
+            меняйте граммовку.
+          </p>
         </section>
       ) : (
-        <p className="footnote">
-          У этой записи нет разбора по ингредиентам — она внесена вручную или старым сценарием
-          бота. Граммовку здесь не поправить, но запись можно удалить и добавить заново через
-          ИИ-разбор.
-        </p>
+        <>
+          <PortionField
+            value={form.portion}
+            unit={form.portionUnit}
+            onChange={(portion) => patch({ portion })}
+            onUnitChange={(portionUnit) => patch({ portionUnit })}
+          />
+          <div className="manual-grid">
+            <Field
+              label="Ккал"
+              value={form.kcal}
+              mono
+              accent
+              inputMode="decimal"
+              onChange={(kcal) => patch({ kcal })}
+            />
+            <Field
+              label="Белки, г"
+              value={form.protein}
+              mono
+              inputMode="decimal"
+              onChange={(protein) => patch({ protein })}
+            />
+            <Field
+              label="Жиры, г"
+              value={form.fat}
+              mono
+              inputMode="decimal"
+              onChange={(fat) => patch({ fat })}
+            />
+            <Field
+              label="Углеводы, г"
+              value={form.carbs}
+              mono
+              inputMode="decimal"
+              onChange={(carbs) => patch({ carbs })}
+            />
+            <Field
+              label="Клетчатка, г"
+              value={form.fiber}
+              mono
+              inputMode="decimal"
+              onChange={(fiber) => patch({ fiber })}
+            />
+          </div>
+
+          <section className="sheet-section">
+            <h3 className="section-label sheet-section__label">Витамины и минералы</h3>
+            <MicrosEditor value={form.micros} onChange={(micros) => patch({ micros })} />
+          </section>
+        </>
       )}
 
-      <section className="sheet-section">
-        <div className="sheet-section__head">
-          <h3 className="section-label">Свои продукты</h3>
-          {!saveOpen && (
-            <button type="button" className="link-btn" onClick={() => setSaveOpen(true)}>
-              Сохранить продукт
-            </button>
-          )}
-        </div>
+      <MealProductSave
+        defaultName={form.name}
+        basisPortion={computed?.portion_g || toNumber(form.portion) || 0}
+        basisUnit={form.portionUnit}
+        totals={shown}
+      />
 
-        {!saveOpen ? (
-          <p className="footnote">
-            Сохраните это блюдо продуктом — и в следующий раз добавляйте его из поиска,
-            не описывая заново.
-          </p>
-        ) : (
-          <>
-            <Field label="Название продукта" value={productName} onChange={setProductName} />
-            <PortionField
-              label="Порция"
-              value={portion}
-              unit={portionUnit}
-              onChange={setPortion}
-              onUnitChange={setPortionUnit}
-            />
-
-            <div className="meal-macros" style={{ marginTop: 10 }}>
-              <Tile
-                label="Ккал"
-                value={num(productValues.calories_kcal)}
-                color="var(--color-accent-300)"
-              />
-              <Tile label="Белки" value={num(productValues.protein_g, 1)} />
-              <Tile label="Жиры" value={num(productValues.fat_g, 1)} />
-              <Tile label="Углев." value={num(productValues.carbs_g, 1)} />
-            </div>
-
-            <p className="footnote">
-              {basisPortion > 0
-                ? `Состав пересчитан с ${num(basisPortion)} ${meal.portion_unit} записи на порцию продукта — витамины и минералы тоже.`
-                : 'У записи нет массы, поэтому пересчитывать не от чего: продукт сохранится с цифрами всей записи, а порция станет подписью.'}
-            </p>
-
-            <div className="ai-actions">
-              <button
-                type="button"
-                className="btn btn--sm btn--neutral"
-                onClick={() => setSaveOpen(false)}
-              >
-                Свернуть
-              </button>
-              <button
-                type="button"
-                className="btn btn--sm btn--accent"
-                disabled={addProduct.isPending || !productName.trim()}
-                onClick={onSaveProduct}
-              >
-                {addProduct.isPending ? 'Сохраняю…' : 'В свои продукты'}
-              </button>
-            </div>
-
-            {addProduct.isError && <ErrorNote message={addProduct.error.message} />}
-            {addProduct.isSuccess && (
-              <p className="footnote">
-                «{addProduct.data.name}» сохранён — ищите его во вкладке «Поиск» при добавлении
-                блюда.
-              </p>
-            )}
-          </>
-        )}
-      </section>
-
-      {microRows.length > 0 && (
+      {items && microRows.length > 0 && (
         <section className="sheet-section">
           <h3 className="section-label sheet-section__label">Микронутриенты блюда</h3>
           {microRows.map((row) => (

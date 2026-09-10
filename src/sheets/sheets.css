@@ -339,3 +339,16 @@
   gap: 8px;
   margin-top: 9px;
 }
+
+/* Название ингредиента правится на месте: ИИ часто зовёт продукт по-своему. */
+.composition-row__input {
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: var(--radius-tile);
+  background: var(--color-neutral-900);
+  box-shadow: 0 0 0 1px var(--color-neutral-800);
+}
+
+.composition-row__input:focus-visible {
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
