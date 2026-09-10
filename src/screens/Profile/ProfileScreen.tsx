@@ -10,18 +10,21 @@ import {
   useSupplements,
   useTemplates,
 } from '@/api/hooks'
+import { useState } from 'react'
+
 import { useUi } from '@/app/store'
 import { Icon } from '@/components/Icon'
 import {
   Card,
   CardHead,
   ErrorNote,
+  Field,
   LoadingScreen,
   Segment,
   Tile,
 } from '@/components/primitives'
 import { haptic } from '@/api/telegram'
-import { doseValue, minutesLabel, nowTime, num, today } from '@/lib/format'
+import { doseValue, minutesLabel, nowTime, num, toNumber, today } from '@/lib/format'
 import { groupSupplements, servingRatioLabel, substancesLabel } from '@/lib/supplements'
 import type { Goal } from '@/api/types'
 import './profile.css'
@@ -38,8 +41,15 @@ const GOAL_NOTE: Record<Goal, string> = {
   gain: 'плюс 12% под цель «набор»',
 }
 
+/** Границы своей нормы совпадают с серверными: ниже 800 это уже не диета, выше 8000 — опечатка. */
+const NORM_MIN = 800
+const NORM_MAX = 8000
+
 export function ProfileScreen() {
   const openSheet = useUi((state) => state.openSheet)
+  // Строка — значит норму правят прямо на карточке; null — показываем её как есть.
+  const [normDraft, setNormDraft] = useState<string | null>(null)
+  const [normError, setNormError] = useState<string | null>(null)
 
   const { data: profile, isLoading, error } = useProfile()
   const { data: supplements = [] } = useSupplements()
@@ -98,26 +108,91 @@ export function ProfileScreen() {
       </Card>
 
       <Card accent>
-        <CardHead
+<CardHead
           title={manualNorm ? 'Своя норма' : 'Расчётная норма'}
           meta={
-            manualNorm ? (
+            normDraft === null ? (
               <button
                 type="button"
                 className="link-btn"
-                onClick={() => saveProfile.mutate({ calories_override: null })}
+                onClick={() => {
+                  setNormError(null)
+                  setNormDraft(String(Math.round(norms.calories)))
+                }}
               >
-                Вернуть расчётную
+                {manualNorm ? 'Изменить' : 'Задать свою'}
               </button>
-            ) : (
-              'Mifflin–St Jeor'
-            )
+            ) : undefined
           }
         />
-        <div>
-          <span className="norm-card__value">{num(norms.calories)}</span>
-          <span className="norm-card__unit">ккал / день</span>
-        </div>
+
+        {normDraft === null ? (
+          <div>
+            <span className="norm-card__value">{num(norms.calories)}</span>
+            <span className="norm-card__unit">ккал / день</span>
+          </div>
+        ) : (
+          <div className="norm-edit">
+            <Field
+              label="Ккал в день"
+              value={normDraft}
+              onChange={setNormDraft}
+              mono
+              accent
+              inputMode="numeric"
+            />
+            <div className="norm-edit__actions">
+              <button
+                type="button"
+                className="btn btn--sm btn--neutral"
+                onClick={() => {
+                  setNormDraft(null)
+                  setNormError(null)
+                }}
+              >
+                Отмена
+              </button>
+              {manualNorm && (
+                <button
+                  type="button"
+                  className="btn btn--sm btn--neutral"
+                  disabled={saveProfile.isPending}
+                  onClick={() => {
+                    setNormDraft(null)
+                    setNormError(null)
+                    saveProfile.mutate({ calories_override: null })
+                  }}
+                >
+                  Вернуть расчётную
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn btn--sm btn--accent"
+                disabled={saveProfile.isPending}
+                onClick={() => {
+                  const value = toNumber(normDraft)
+                  if (value === null || value < NORM_MIN || value > NORM_MAX) {
+                    setNormError(`Норма должна быть от ${NORM_MIN} до ${NORM_MAX} ккал`)
+                    return
+                  }
+                  setNormError(null)
+                  saveProfile.mutate(
+                    { calories_override: value },
+                    { onSuccess: () => setNormDraft(null) },
+                  )
+                }}
+              >
+                {saveProfile.isPending ? 'Сохраняю…' : 'Сохранить'}
+              </button>
+            </div>
+            {normError && <ErrorNote message={normError} />}
+            <p className="footnote">
+              Заменяет только калории: белок и жиры остаются привязаны к весу, а разницу
+              забирают углеводы. Формула даёт {num(norms.calories_computed)} ккал.
+            </p>
+          </div>
+        )}
 
         <div className="norm-card__macros">
           <div className="norm-card__macro">
