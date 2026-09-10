@@ -509,3 +509,63 @@
   line-height: 1.5;
   color: var(--color-neutral-600);
 }
+
+/* ─── Редактор микронутриентов продукта ─── */
+.micros-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.micros-editor__row {
+  display: grid;
+  grid-template-columns: 1fr 68px 34px 26px;
+  align-items: center;
+  gap: 6px;
+}
+
+.micros-editor__name {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.micros-editor__input {
+  padding: 7px 8px;
+  border-radius: var(--radius-tile);
+  background: var(--color-bg);
+  box-shadow: 0 0 0 1px var(--color-neutral-800);
+  font-size: 12.5px;
+  text-align: right;
+}
+
+.micros-editor__input:focus-visible {
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+.micros-editor__unit {
+  font-size: 10.5px;
+  color: var(--color-neutral-600);
+}
+
+.micros-editor__remove {
+  display: flex;
+  justify-content: center;
+  color: var(--color-neutral-600);
+}
+
+.micros-editor__remove:hover:not(:disabled) {
+  color: var(--color-accent-300);
+}
+
+.select-row--compact select {
+  font-size: 12px;
+}
+
+.portion-field {
+  display: grid;
+  grid-template-columns: 1fr 92px;
+  gap: 9px;
+  margin-top: 9px;
+}

@@ -1,12 +1,26 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
-import { useAddMeal, useParseMeal, useProducts } from '@/api/hooks'
-import type { MealItem, Product } from '@/api/types'
+import {
+  useAddMeal,
+  useEstimateMicros,
+  useParseLabel,
+  useParseMeal,
+  useProducts,
+} from '@/api/hooks'
+import type { AiLabelResult, MealItem, Micros, Per100, PortionUnit, Product } from '@/api/types'
 import { Icon } from '@/components/Icon'
+import { MicrosEditor } from '@/components/MicrosEditor'
 import { Sheet } from '@/components/Sheet'
-import { ErrorNote, Field, Segment, Stepper } from '@/components/primitives'
-import { num, nowTime } from '@/lib/format'
-import { guessMealType, totalsFromItems } from '@/lib/nutrition'
+import {
+  ErrorNote,
+  Field,
+  PhotoButton,
+  PortionField,
+  Segment,
+  Stepper,
+} from '@/components/primitives'
+import { num, nowTime, roundTo, toNumber } from '@/lib/format'
+import { guessMealType, portionFromPer100, totalsFromItems } from '@/lib/nutrition'
 import './sheets.css'
 
 type Mode = 'ai' | 'search' | 'manual'
@@ -17,7 +31,11 @@ const MODES = [
   { value: 'manual' as const, label: 'Вручную' },
 ]
 
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024
+const CONFIDENCE_LABELS: Record<string, string> = {
+  low: 'точность низкая',
+  medium: 'точность средняя',
+  high: 'точность высокая',
+}
 
 interface ManualForm {
   name: string
@@ -39,24 +57,29 @@ const EMPTY_MANUAL: ManualForm = {
   fiber: '',
 }
 
-function toNumber(value: string): number | null {
-  if (!value.trim()) return null
-  const parsed = Number(value.replace(',', '.'))
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null
-}
-
 export function AddMealSheet({ day, onClose }: { day: string; onClose: () => void }) {
   const [mode, setMode] = useState<Mode>('ai')
   const [aiText, setAiText] = useState('')
   const [items, setItems] = useState<MealItem[] | null>(null)
+  // Что вернул разбор до правок: удалённую по ошибке позицию надо уметь вернуть,
+  // не тратя ещё один вызов модели.
+  const [parsedItems, setParsedItems] = useState<MealItem[] | null>(null)
   const [parsedName, setParsedName] = useState('')
   const [query, setQuery] = useState('')
   const [manual, setManual] = useState<ManualForm>(EMPTY_MANUAL)
+  const [portionUnit, setPortionUnit] = useState<PortionUnit>('г')
+  // Состав на 100 г со снятой этикетки: пока он есть, правка граммовки пересчитывает
+  // КБЖУ сама. Ручная правка любого макроса его сбрасывает — дальше цифры пользователя.
+  const [labelPer100, setLabelPer100] = useState<Per100 | null>(null)
   const [saveAsProduct, setSaveAsProduct] = useState(false)
+  // Состав блюда, внесённого вручную: заполняется ИИ или руками и уходит
+  // и в запись дня, и в сохранённый продукт — это один и тот же продукт.
+  const [manualMicros, setManualMicros] = useState<Micros>({})
   const [formError, setFormError] = useState<string | null>(null)
-  const fileInput = useRef<HTMLInputElement>(null)
 
   const parseMeal = useParseMeal()
+  const parseLabel = useParseLabel()
+  const estimateMicros = useEstimateMicros()
   const addMeal = useAddMeal(day)
   // Поиск идёт по каждому нажатию — сглаживаем, чтобы не слать запрос на каждую букву.
   const [debouncedQuery, setDebouncedQuery] = useState('')
@@ -70,9 +93,11 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
     error: searchError,
   } = useProducts(debouncedQuery, mode === 'search')
 
+  const removedCount = Math.max((parsedItems?.length ?? 0) - (items?.length ?? 0), 0)
+
   const time = nowTime()
   // Разобранный ИИ состав относится только к режиму ИИ — в ручном режиме сохраняется форма.
-  const totals = mode === 'ai' && items ? totalsFromItems(items) : null
+  const totals = mode === 'ai' && items && items.length > 0 ? totalsFromItems(items) : null
 
   const saveDisabled =
     addMeal.isPending ||
@@ -107,6 +132,8 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
       carbs_g: toNumber(manual.carbs),
       fiber_g: toNumber(manual.fiber),
       portion_g: toNumber(manual.portion),
+      portion_unit: portionUnit,
+      micros: manualMicros,
       meal_type: guessMealType(time),
       eaten_at: time,
       source: 'webapp_manual',
@@ -141,6 +168,7 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
         carbs_g: product.carbs_g,
         fiber_g: product.fiber_g,
         portion_g: product.portion_g,
+        portion_unit: product.portion_unit,
         micros: product.micros,
         meal_type: guessMealType(time),
         eaten_at: time,
@@ -156,22 +184,86 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
       {
         onSuccess: (result) => {
           setItems(result.items)
+          setParsedItems(result.items)
           setParsedName(result.name)
         },
       },
     )
   }
 
-  const onPickPhoto = (file: File | undefined) => {
-    if (!file) return
-    if (file.size > MAX_IMAGE_BYTES) {
-      setFormError('Фото больше 8 МБ — выберите файл поменьше')
+  const runMicroEstimate = () => {
+    if (!manual.name.trim()) {
+      setFormError('Сначала укажите название — иначе ИИ нечего оценивать')
       return
     }
     setFormError(null)
-    const reader = new FileReader()
-    reader.onload = () => runParse(String(reader.result))
-    reader.readAsDataURL(file)
+    estimateMicros.mutate(
+      {
+        name: manual.name.trim(),
+        portion_g: toNumber(manual.portion),
+        calories_kcal: toNumber(manual.kcal),
+        protein_g: toNumber(manual.protein),
+        fat_g: toNumber(manual.fat),
+        carbs_g: toNumber(manual.carbs),
+      },
+      {
+        onSuccess: (result) => {
+          setManualMicros(result.micros)
+          // Клетчатку модель считает заодно; своё значение пользователя не трогаем.
+          if (!toNumber(manual.fiber) && result.fiber_g) {
+            setManual((form) => ({ ...form, fiber: String(result.fiber_g) }))
+          }
+        },
+      },
+    )
+  }
+
+  /** Ответ модели по фото упаковки — в форму целиком: за этим кнопку и нажимают. */
+  const applyLabel = (result: AiLabelResult) => {
+    // Без порции на упаковке таблица дана на 100 г — с ней форма и остаётся согласованной.
+    const portion = result.portion_g ?? 100
+    setManual({
+      name: result.name,
+      portion: String(portion),
+      kcal: String(result.calories_kcal),
+      protein: String(result.protein_g),
+      fat: String(result.fat_g),
+      carbs: String(result.carbs_g),
+      fiber: result.fiber_g ? String(result.fiber_g) : '',
+    })
+    setPortionUnit(result.portion_unit)
+    setManualMicros(result.micros)
+    setLabelPer100(result.per100)
+    setFormError(null)
+  }
+
+  const runLabelParse = (imageBase64: string) => {
+    setFormError(null)
+    parseLabel.mutate({ image_base64: imageBase64 }, { onSuccess: applyLabel })
+  }
+
+  const onPortionChange = (portion: string) => {
+    setManual((form) => ({ ...form, portion }))
+    if (!labelPer100) return
+    const grams = toNumber(portion)
+    if (grams === null) return
+    const scaled = portionFromPer100(labelPer100, grams)
+    setManual((form) => ({
+      ...form,
+      portion,
+      kcal: String(roundTo(scaled.calories_kcal)),
+      protein: String(scaled.protein_g),
+      fat: String(scaled.fat_g),
+      carbs: String(scaled.carbs_g),
+      fiber: scaled.fiber_g ? String(roundTo(scaled.fiber_g, 1)) : '',
+    }))
+    setManualMicros(scaled.micros)
+  }
+
+  /** Правка КБЖУ руками отменяет автопересчёт: дальше в форме цифры пользователя. */
+  const setMacro = (key: keyof ManualForm) => (value: string) => {
+    setManual((form) => ({ ...form, [key]: value }))
+    setLabelPer100(null)
   }
 
   const footerLabel = totals
@@ -217,15 +309,12 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
           />
 
           <div className="ai-actions">
-            <button
-              type="button"
-              className="btn btn--sm btn--neutral"
-              onClick={() => fileInput.current?.click()}
+            <PhotoButton
+              label="Фото"
               disabled={parseMeal.isPending}
-            >
-              <Icon name="magnifying-glass" size={14} />
-              Фото
-            </button>
+              onPick={runParse}
+              onError={setFormError}
+            />
             <button
               type="button"
               className="btn btn--sm btn--accent"
@@ -236,13 +325,6 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
               {parseMeal.isPending ? 'Разбираю…' : 'Разобрать'}
             </button>
           </div>
-          <input
-            ref={fileInput}
-            type="file"
-            accept="image/*"
-            className="sr-only"
-            onChange={(event) => onPickPhoto(event.target.files?.[0])}
-          />
 
           {parseMeal.isError && <ErrorNote message={parseMeal.error.message} />}
 
@@ -250,8 +332,11 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
             <>
               <p className="ai-note">
                 <Icon name="sparkle" size={14} weight="fill" color="var(--color-accent)" />
-                ИИ разобрал — проверьте граммовку
+                ИИ разобрал — проверьте состав и граммовку
               </p>
+              {/* Название даёт модель, но состав можно поправить — тогда «омлет
+                  с тостом» без тоста надо уметь переименовать. */}
+              <Field label="Название блюда" value={parsedName} onChange={setParsedName} />
               {items.map((item, index) => (
                 <div className="parsed-item" key={`${item.name}-${index}`}>
                   <div className="parsed-item__body">
@@ -273,8 +358,22 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
                       )
                     }
                   />
+                  {/* ИИ часто добавляет то, чего в тарелке не было: гарнир, соус, хлеб. */}
+                  <button
+                    type="button"
+                    className="parsed-item__remove"
+                    aria-label={`Убрать ${item.name} из разбора`}
+                    onClick={() =>
+                      setItems((current) =>
+                        (current ?? []).filter((_, entryIndex) => entryIndex !== index),
+                      )
+                    }
+                  >
+                    <Icon name="trash" size={13} />
+                  </button>
                 </div>
               ))}
+
               <label className="checkbox-row">
                 <input
                   type="checkbox"
@@ -283,11 +382,35 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
                 />
                 Сохранить как своё блюдо для повторов
               </label>
+              {saveAsProduct && (
+                <p className="footnote">
+                  Витамины и минералы ИИ уже оценил при разборе — они сохранятся вместе
+                  с продуктом.
+                </p>
+              )}
             </>
           )}
 
+          {/* Живёт вне списка: последнюю позицию тоже можно убрать, и вернуть её
+              должно быть чем — иначе остаётся только повторный вызов модели. */}
+          {removedCount > 0 && (
+            <button
+              type="button"
+              className="link-btn parsed-restore"
+              onClick={() => setItems(parsedItems)}
+            >
+              Вернуть убранное ({removedCount})
+            </button>
+          )}
+
           {items && items.length === 0 && (
-            <ErrorNote message="ИИ не нашёл в описании ни одного продукта. Попробуйте описать подробнее или введите вручную." />
+            <ErrorNote
+              message={
+                removedCount > 0
+                  ? 'Вы убрали все позиции. Верните что-нибудь из разбора или опишите блюдо заново.'
+                  : 'ИИ не нашёл в описании ни одного продукта. Попробуйте описать подробнее или введите вручную.'
+              }
+            />
           )}
         </>
       )}
@@ -326,7 +449,7 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
                     Б{num(product.protein_g)}
                     {product.fat_g !== null ? ` Ж${num(product.fat_g)}` : ''}
                     {product.carbs_g !== null ? ` У${num(product.carbs_g)}` : ''}
-                    {product.portion_g ? ` · ${num(product.portion_g)} г` : ''}
+                    {product.portion_g ? ` · ${num(product.portion_g)} ${product.portion_unit}` : ''}
                   </div>
                 </div>
                 <span className="result-card__kcal">{num(product.calories_kcal ?? 0)}</span>
@@ -339,55 +462,81 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
 
       {mode === 'manual' && (
         <>
+          <div className="ai-actions">
+            <PhotoButton
+              accent
+              label={parseLabel.isPending ? 'Читаю этикетку…' : 'Состав с фото'}
+              disabled={parseLabel.isPending}
+              onPick={runLabelParse}
+              onError={setFormError}
+            />
+          </div>
+          <p className="footnote">
+            Снимите таблицу пищевой ценности на упаковке — ИИ заполнит форму сам.
+          </p>
+          {parseLabel.isError && <ErrorNote message={parseLabel.error.message} />}
+          {parseLabel.data && (
+            <p className="ai-note">
+              <Icon name="sparkle" size={14} weight="fill" color="var(--color-accent)" />
+              С упаковки ·{' '}
+              {CONFIDENCE_LABELS[parseLabel.data.confidence] ?? 'точность неизвестна'}
+              {parseLabel.data.comment ? ` · ${parseLabel.data.comment}` : ''}
+            </p>
+          )}
+
           <Field
             label="Название блюда"
             value={manual.name}
             onChange={(name) => setManual((form) => ({ ...form, name }))}
             placeholder="Например, творог с ягодами"
           />
+          <PortionField
+            value={manual.portion}
+            unit={portionUnit}
+            onChange={onPortionChange}
+            onUnitChange={setPortionUnit}
+          />
+          {labelPer100 && (
+            <p className="footnote">
+              Состав снят на 100 {portionUnit} — поменяйте порцию, и КБЖУ пересчитается.
+            </p>
+          )}
           <div className="manual-grid">
-            <Field
-              label="Порция, г"
-              value={manual.portion}
-              mono
-              inputMode="decimal"
-              onChange={(portion) => setManual((form) => ({ ...form, portion }))}
-            />
             <Field
               label="Ккал"
               value={manual.kcal}
               mono
               accent
               inputMode="decimal"
-              onChange={(kcal) => setManual((form) => ({ ...form, kcal }))}
+              onChange={setMacro('kcal')}
             />
             <Field
               label="Белки, г"
               value={manual.protein}
               mono
               inputMode="decimal"
-              onChange={(protein) => setManual((form) => ({ ...form, protein }))}
+              onChange={setMacro('protein')}
             />
             <Field
               label="Жиры, г"
               value={manual.fat}
               mono
               inputMode="decimal"
-              onChange={(fat) => setManual((form) => ({ ...form, fat }))}
+              onChange={setMacro('fat')}
             />
             <Field
               label="Углеводы, г"
               value={manual.carbs}
               mono
               inputMode="decimal"
-              onChange={(carbs) => setManual((form) => ({ ...form, carbs }))}
+              onChange={setMacro('carbs')}
             />
             <Field
               label="Клетчатка, г"
               value={manual.fiber}
               mono
               inputMode="decimal"
-              onChange={(fiber) => setManual((form) => ({ ...form, fiber }))}
+              onChange={setMacro('fiber')}
             />
           </div>
           <label className="checkbox-row">
@@ -398,10 +547,44 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
             />
             Сохранить как своё блюдо для повторов
           </label>
-          <p className="footnote">
-            У блюда, внесённого вручную, нет микронутриентов — в отчёте оно попадёт в «покрытие
-            данными», но не добавит витаминов.
-          </p>
+
+          {/* Форму состава предлагаем там, где она окупается: продукт сохраняется
+              надолго, и без витаминов он будет портить отчёт при каждом повторе. */}
+          {(saveAsProduct || Object.keys(manualMicros).length > 0) && (
+          <section className="sheet-section">
+            <div className="sheet-section__head">
+              <h3 className="section-label">Витамины и минералы</h3>
+              <button
+                type="button"
+                className="btn btn--sm btn--accent"
+                disabled={estimateMicros.isPending}
+                onClick={runMicroEstimate}
+              >
+                <Icon name="sparkle" size={13} color="var(--color-accent-300)" />
+                {estimateMicros.isPending ? 'Оцениваю…' : 'Заполнить ИИ'}
+              </button>
+            </div>
+
+            <MicrosEditor
+              value={manualMicros}
+              onChange={setManualMicros}
+              disabled={estimateMicros.isPending}
+            />
+
+            {estimateMicros.isError && <ErrorNote message={estimateMicros.error.message} />}
+            {estimateMicros.data && (
+              <p className="footnote">
+                Оценка ИИ на {num(estimateMicros.data.portion_g)} г ·{' '}
+                {CONFIDENCE_LABELS[estimateMicros.data.confidence] ?? 'точность неизвестна'}
+                {estimateMicros.data.comment ? ` · ${estimateMicros.data.comment}` : ''}
+              </p>
+            )}
+            <p className="footnote">
+              Это оценка, а не лабораторный анализ. Без неё блюдо попадёт в отчёт только
+              по КБЖУ и снизит «покрытие данными».
+            </p>
+          </section>
+          )}
         </>
       )}
 

@@ -8,7 +8,7 @@ import {
 
 import { mondayOf } from '@/lib/format'
 import { api } from './client'
-import type { MealInput, PeriodRange, Profile, Supplement } from './types'
+import type { MealInput, PeriodRange, Product, Profile, Supplement } from './types'
 
 export const keys = {
   profile: ['profile'] as const,
@@ -165,6 +165,11 @@ export function useAddSupplement() {
   return useDataMutation((payload: Omit<Supplement, 'id'>) => api.addSupplement(payload))
 }
 
+/** Сохранение всей этикетки разом: с банки мультивитаминов приезжает десяток веществ. */
+export function useAddSupplements() {
+  return useDataMutation((items: Omit<Supplement, 'id'>[]) => api.addSupplements(items))
+}
+
 export function useUpdateSupplement() {
   return useDataMutation((vars: { id: number; payload: Partial<Omit<Supplement, 'id'>> }) =>
     api.updateSupplement(vars.id, vars.payload),
@@ -179,4 +184,36 @@ export function useParseMeal() {
   return useMutation({
     mutationFn: (payload: { text: string; image_base64?: string }) => api.parseMeal(payload),
   })
+}
+
+/** Оценка микронутриентов продукта до сохранения: ничего не пишет, инвалидировать нечего. */
+export function useEstimateMicros() {
+  return useMutation({ mutationFn: api.estimateMicros })
+}
+
+/** Чтение этикеток по фото: обе ручки только читают, сохраняет уже пользователь. */
+export function useParseLabel() {
+  return useMutation({ mutationFn: api.parseLabel })
+}
+
+export function useParseSupplementLabel() {
+  return useMutation({ mutationFn: api.parseSupplementLabel })
+}
+
+export function useAddProduct() {
+  return useDataMutation((payload: Omit<Product, 'id'>) => api.addProduct(payload))
+}
+
+export function useUpdateProduct() {
+  return useDataMutation((vars: { id: number; payload: Partial<Omit<Product, 'id'>> }) =>
+    api.updateProduct(vars.id, vars.payload),
+  )
+}
+
+export function useDeleteProduct() {
+  return useDataMutation((id: number) => api.deleteProduct(id))
+}
+
+export function useEstimateProducts() {
+  return useDataMutation(() => api.estimateProducts())
 }

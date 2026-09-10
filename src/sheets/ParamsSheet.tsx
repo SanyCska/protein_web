@@ -5,6 +5,7 @@ import type { Sex } from '@/api/types'
 import { Icon } from '@/components/Icon'
 import { Sheet } from '@/components/Sheet'
 import { ErrorNote, Field, Segment } from '@/components/primitives'
+import { num } from '@/lib/format'
 import './sheets.css'
 
 const SEXES: { value: Sex; label: string }[] = [
@@ -23,6 +24,8 @@ const BOUNDS: Record<string, Bounds> = {
   height_cm: { min: 100, max: 250, label: 'Рост' },
   weight_kg: { min: 25, max: 350, label: 'Вес' },
   body_fat_pct: { min: 1, max: 70, label: 'Жир %' },
+  // Границы совпадают с серверными: ниже 800 ккал это уже не диета, выше 8000 — опечатка.
+  calories_override: { min: 800, max: 8000, label: 'Своя норма' },
 }
 
 function validate(field: keyof typeof BOUNDS, raw: string, required: boolean): string | null {
@@ -50,6 +53,9 @@ export function ParamsSheet({ onClose }: { onClose: () => void }) {
       : '',
   )
   const [activity, setActivity] = useState(profile?.activity ?? 1.55)
+  const [calories, setCalories] = useState(
+    profile?.calories_override != null ? String(profile.calories_override) : '',
+  )
   const [formError, setFormError] = useState<string | null>(null)
 
   const levels = reference?.activity_levels ?? []
@@ -66,7 +72,8 @@ export function ParamsSheet({ onClose }: { onClose: () => void }) {
       validate('age', age, true) ??
       validate('height_cm', height, true) ??
       validate('weight_kg', weight, true) ??
-      validate('body_fat_pct', bodyFat, false)
+      validate('body_fat_pct', bodyFat, false) ??
+      validate('calories_override', calories, false)
     if (problem) {
       setFormError(problem)
       return
@@ -80,6 +87,8 @@ export function ParamsSheet({ onClose }: { onClose: () => void }) {
         weight_kg: Number(weight.replace(',', '.')),
         activity: selectedActivity,
         body_fat_pct: bodyFat.trim() ? Number(bodyFat.replace(',', '.')) : null,
+        // Пусто — вернуться к расчёту по формуле.
+        calories_override: calories.trim() ? Number(calories.replace(',', '.')) : null,
       },
       { onSuccess: onClose },
     )
@@ -123,6 +132,24 @@ export function ParamsSheet({ onClose }: { onClose: () => void }) {
           mono
           inputMode="decimal"
         />
+      </div>
+
+      <div className="sheet-section">
+        <h3 className="section-label sheet-section__label">Своя норма калорий</h3>
+        <Field
+          label="Ккал в день (пусто — считать по формуле)"
+          value={calories}
+          onChange={setCalories}
+          mono
+          accent
+          inputMode="numeric"
+          placeholder={profile ? String(profile.norms.calories_computed) : ''}
+        />
+        <p className="footnote">
+          Заменяет только калории: белок и жиры остаются привязаны к весу, а разницу
+          забирают углеводы. Формула даёт{' '}
+          {profile ? num(profile.norms.calories_computed) : '—'} ккал.
+        </p>
       </div>
 
       <div className="sheet-section">

@@ -1,11 +1,14 @@
 import {
+  useAddWorkout,
+  useDeleteProduct,
   useDeleteSupplement,
   useDeleteTemplate,
+  useEstimateProducts,
+  useProducts,
   useProfile,
   useSaveProfile,
   useSupplements,
   useTemplates,
-  useAddWorkout,
 } from '@/api/hooks'
 import { useUi } from '@/app/store'
 import { Icon } from '@/components/Icon'
@@ -40,10 +43,13 @@ export function ProfileScreen() {
   const { data: profile, isLoading, error } = useProfile()
   const { data: supplements = [] } = useSupplements()
   const { data: templates = [] } = useTemplates()
+  const { data: products = [] } = useProducts('')
 
   const saveProfile = useSaveProfile()
   const deleteSupplement = useDeleteSupplement()
   const deleteTemplate = useDeleteTemplate()
+  const deleteProduct = useDeleteProduct()
+  const estimateProducts = useEstimateProducts()
   // Из профиля тренировка всегда идёт в сегодняшний день: выбранный в дневнике день здесь не виден.
   const addWorkout = useAddWorkout(today())
 
@@ -52,6 +58,8 @@ export function ProfileScreen() {
   if (!profile) return null
 
   const { norms } = profile
+  const manualNorm = norms.calories_source === 'manual'
+  const withoutMicros = products.filter((product) => Object.keys(product.micros).length === 0)
 
   return (
     <>
@@ -89,7 +97,22 @@ export function ProfileScreen() {
       </Card>
 
       <Card accent>
-        <CardHead title="Расчётная норма" meta="Mifflin–St Jeor" />
+        <CardHead
+          title={manualNorm ? 'Своя норма' : 'Расчётная норма'}
+          meta={
+            manualNorm ? (
+              <button
+                type="button"
+                className="link-btn"
+                onClick={() => saveProfile.mutate({ calories_override: null })}
+              >
+                Вернуть расчётную
+              </button>
+            ) : (
+              'Mifflin–St Jeor'
+            )
+          }
+        />
         <div>
           <span className="norm-card__value">{num(norms.calories)}</span>
           <span className="norm-card__unit">ккал / день</span>
@@ -117,8 +140,18 @@ export function ProfileScreen() {
         </div>
 
         <p className="norm-card__note">
-          BMR {num(norms.bmr)} ккал × {norms.activity_factor.toFixed(2)} активности,{' '}
-          {GOAL_NOTE[profile.goal]}. Нагрузка из дневника добавляется сверху в тот же день.
+          {manualNorm ? (
+            <>
+              Норма задана вручную. Формула для ваших параметров даёт{' '}
+              {num(norms.calories_computed)} ккал, разницу забирают углеводы. Нагрузка
+              из дневника добавляется сверху в тот же день.
+            </>
+          ) : (
+            <>
+              BMR {num(norms.bmr)} ккал × {norms.activity_factor.toFixed(2)} активности,{' '}
+              {GOAL_NOTE[profile.goal]}. Нагрузка из дневника добавляется сверху в тот же день.
+            </>
+          )}
         </p>
       </Card>
 
@@ -169,6 +202,75 @@ export function ProfileScreen() {
           ))
         )}
         <p className="footnote">Учитываются в дневной норме и в отчётах по микронутриентам.</p>
+      </Card>
+
+      <Card>
+        <CardHead
+          title="Свои продукты"
+          meta={
+            withoutMicros.length > 0 ? (
+              <button
+                type="button"
+                className="link-btn"
+                disabled={estimateProducts.isPending}
+                onClick={() => estimateProducts.mutate(undefined)}
+              >
+                {estimateProducts.isPending
+                  ? 'Оцениваю…'
+                  : `Оценить состав (${withoutMicros.length})`}
+              </button>
+            ) : undefined
+          }
+        />
+        {products.length === 0 ? (
+          <p className="footnote">
+            Пока пусто. Отметьте «сохранить как своё блюдо» при добавлении — продукт
+            появится здесь и в поиске.
+          </p>
+        ) : (
+          products.map((product) => {
+            const known = Object.keys(product.micros).length
+            return (
+              <div className="product-row" key={product.id}>
+                <div className="product-row__body">
+                  <div className="product-row__name">{product.name}</div>
+                  <div className="product-row__meta">
+                    {product.calories_kcal !== null ? `${num(product.calories_kcal)} ккал` : 'без ккал'}
+                    {product.portion_g ? ` · ${num(product.portion_g)} ${product.portion_unit}` : ''}
+                    {known ? ` · ${known} нутриентов` : ' · состав неизвестен'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="supplement-row__remove"
+                  aria-label={`Удалить ${product.name}`}
+                  onClick={() => {
+                    if (window.confirm(`Удалить продукт «${product.name}»?`)) {
+                      deleteProduct.mutate(product.id)
+                    }
+                  }}
+                >
+                  <Icon name="trash" size={14} />
+                </button>
+              </div>
+            )
+          })
+        )}
+        {estimateProducts.isError && <ErrorNote message={estimateProducts.error.message} />}
+        {estimateProducts.data && (
+          <p className="footnote">
+            {estimateProducts.data.error
+              ? `ИИ недоступен: ${estimateProducts.data.error}`
+              : `Оценено продуктов: ${estimateProducts.data.updated.length}.`}
+            {estimateProducts.data.failed > 0 &&
+              ` Не удалось разобрать: ${estimateProducts.data.failed}.`}
+            {estimateProducts.data.remaining > 0 &&
+              ` Осталось без состава: ${estimateProducts.data.remaining} — запустите ещё раз.`}
+          </p>
+        )}
+        <p className="footnote">
+          Состав нужен, чтобы продукт приносил в отчёт витамины и минералы, а не только КБЖУ.
+        </p>
       </Card>
 
       <Card>

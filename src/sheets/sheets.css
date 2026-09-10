@@ -268,3 +268,60 @@
   font-weight: 600;
   color: var(--color-accent-300);
 }
+
+/* Заголовок секции с действием справа (например «Заполнить ИИ») */
+.sheet-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.sheet-section__head .section-label {
+  margin: 0;
+}
+
+.parsed-item__remove {
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  color: var(--color-neutral-600);
+}
+
+.parsed-item__remove:hover {
+  color: var(--color-accent-300);
+}
+
+.parsed-restore {
+  align-self: flex-start;
+  margin: 2px 0 8px;
+}
+
+/* ─── добавки: несколько веществ с одной банки ─── */
+
+.supp-item {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: var(--radius-tile);
+  background: var(--color-neutral-900);
+  box-shadow: 0 0 0 1px var(--color-neutral-800);
+}
+
+.supp-item__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.supp-item__head .select-row {
+  flex: 1;
+  padding: 8px 10px;
+}
+
+.supp-item__grid {
+  display: grid;
+  grid-template-columns: 1fr 74px 62px;
+  gap: 8px;
+  margin-top: 8px;
+}

@@ -8,6 +8,7 @@ import {
   nutrientValue,
   parseDay,
   toDayString,
+  toNumber,
   weekdayShort,
 } from './format'
 
@@ -74,5 +75,26 @@ describe('mondayOf', () => {
   })
   it('crosses a month boundary', () => {
     expect(mondayOf('2026-09-01')).toBe('2026-08-31')
+  })
+})
+
+describe('toNumber', () => {
+  it('принимает запятую как разделитель', () => {
+    expect(toNumber('12,5')).toBe(12.5)
+  })
+
+  it('пустое поле — это «не указано», а не ноль', () => {
+    expect(toNumber('')).toBeNull()
+    expect(toNumber('   ')).toBeNull()
+  })
+
+  it('отбрасывает мусор и отрицательные значения', () => {
+    expect(toNumber('много')).toBeNull()
+    expect(toNumber('-5')).toBeNull()
+    expect(toNumber('Infinity')).toBeNull()
+  })
+
+  it('ноль остаётся нулём', () => {
+    expect(toNumber('0')).toBe(0)
   })
 })

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { barColor, guessMealType, totalsFromItems } from './nutrition'
+import { barColor, guessMealType, portionFromPer100, totalsFromItems } from './nutrition'
 
 describe('totalsFromItems', () => {
   it('масштабирует значения per100 по граммовке', () => {
@@ -74,5 +74,45 @@ describe('guessMealType', () => {
 
   it('на мусорном времени возвращает other', () => {
     expect(guessMealType('нет')).toBe('other')
+  })
+})
+
+describe('portionFromPer100', () => {
+  const label = {
+    calories_kcal: 120,
+    protein_g: 8,
+    fat_g: 3,
+    carbs_g: 14,
+    fiber_g: 0.5,
+    calcium: 110,
+  }
+
+  it('пересчитывает состав этикетки на порцию', () => {
+    const portion = portionFromPer100(label, 200)
+    expect(portion.calories_kcal).toBeCloseTo(240)
+    expect(portion.protein_g).toBeCloseTo(16)
+    expect(portion.micros.calcium).toBeCloseTo(220)
+  })
+
+  it('оставляет сотню как есть', () => {
+    expect(portionFromPer100(label, 100).calories_kcal).toBeCloseTo(120)
+  })
+
+  it('держит клетчатку одним значением в макросах и микронутриентах', () => {
+    const portion = portionFromPer100(label, 200)
+    expect(portion.fiber_g).toBeCloseTo(1)
+    expect(portion.micros.fiber).toBeCloseTo(1)
+  })
+
+  it('не считает макросы микронутриентами', () => {
+    const portion = portionFromPer100(label, 100)
+    expect(portion.micros.calories_kcal).toBeUndefined()
+    expect(Object.keys(portion.micros).sort()).toEqual(['calcium', 'fiber'])
+  })
+
+  it('нулевая порция обнуляет состав', () => {
+    const portion = portionFromPer100(label, 0)
+    expect(portion.calories_kcal).toBe(0)
+    expect(portion.micros.calcium).toBe(0)
   })
 })

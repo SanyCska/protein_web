@@ -1,12 +1,16 @@
 import { initData, isInsideTelegram } from './telegram'
 import type {
+  AiLabelResult,
   AiParseResult,
+  AiSupplementLabelResult,
   DayReport,
   DayView,
   Meal,
   MealInput,
   PeriodRange,
   Product,
+  ProductMicroEstimate,
+  ProductsEstimateResult,
   Profile,
   Progress,
   Reference,
@@ -147,16 +151,34 @@ export const api = {
 
   supplements: () => get<Supplement[]>('/supplements'),
   addSupplement: (payload: Omit<Supplement, 'id'>) => post<Supplement>('/supplements', payload),
+  addSupplements: (items: Omit<Supplement, 'id'>[]) =>
+    post<Supplement[]>('/supplements/bulk', { items }),
   updateSupplement: (id: number, payload: Partial<Omit<Supplement, 'id'>>) =>
     patch<Supplement>(`/supplements/${id}`, payload),
   deleteSupplement: (id: number) => del(`/supplements/${id}`),
 
   products: (query: string) => get<Product[]>(`/products?q=${encodeURIComponent(query)}`),
   addProduct: (payload: Omit<Product, 'id'>) => post<Product>('/products', payload),
+  updateProduct: (id: number, payload: Partial<Omit<Product, 'id'>>) =>
+    patch<Product>(`/products/${id}`, payload),
   deleteProduct: (id: number) => del(`/products/${id}`),
+  estimateProduct: (id: number) => post<Product>(`/products/${id}/estimate`, {}),
+  estimateProducts: () => post<ProductsEstimateResult>('/products/estimate', {}),
 
   parseMeal: (payload: { text: string; image_base64?: string }) =>
     post<AiParseResult>('/ai/parse', payload),
+  parseLabel: (payload: { image_base64: string; text?: string }) =>
+    post<AiLabelResult>('/ai/label', payload),
+  parseSupplementLabel: (payload: { image_base64: string; text?: string }) =>
+    post<AiSupplementLabelResult>('/ai/supplement-label', payload),
+  estimateMicros: (payload: {
+    name: string
+    portion_g?: number | null
+    calories_kcal?: number | null
+    protein_g?: number | null
+    fat_g?: number | null
+    carbs_g?: number | null
+  }) => post<ProductMicroEstimate>('/ai/product', payload),
 
   dayReport: (day: string) => get<DayReport>(`/report/day/${day}`),
   periodReport: (range: PeriodRange, end: string) =>

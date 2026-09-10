@@ -2,11 +2,25 @@ import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { api } from '@/api/client'
-import { keys, useDeleteMeal, useProfile, useReference, useUpdateMeal } from '@/api/hooks'
-import type { MealItem } from '@/api/types'
+import {
+  keys,
+  useAddProduct,
+  useDeleteMeal,
+  useProfile,
+  useReference,
+  useUpdateMeal,
+} from '@/api/hooks'
+import type { MealItem, PortionUnit } from '@/api/types'
 import { Sheet } from '@/components/Sheet'
-import { ErrorNote, NutrientRow, Stepper, Tile } from '@/components/primitives'
-import { num, shortDate } from '@/lib/format'
+import {
+  ErrorNote,
+  Field,
+  NutrientRow,
+  PortionField,
+  Stepper,
+  Tile,
+} from '@/components/primitives'
+import { num, roundTo, shortDate, toNumber } from '@/lib/format'
 import { MEAL_TYPE_LABELS, totalsFromItems } from '@/lib/nutrition'
 import './sheets.css'
 
@@ -40,11 +54,23 @@ export function MealDetailSheet({ mealId, onClose }: { mealId: number; onClose: 
   const { data: profile } = useProfile()
   const updateMeal = useUpdateMeal()
   const deleteMeal = useDeleteMeal()
+  const addProduct = useAddProduct()
 
   const [items, setItems] = useState<MealItem[] | null>(null)
+  // Форма «в свои продукты»: своё название и своя порция, чтобы из «Обеда» на 640 ккал
+  // получился продукт «Творог, 100 г», а не вся тарелка целиком.
+  const [saveOpen, setSaveOpen] = useState(false)
+  const [productName, setProductName] = useState('')
+  const [portion, setPortion] = useState('')
+  const [portionUnit, setPortionUnit] = useState<PortionUnit>('г')
 
   useEffect(() => {
-    if (meal) setItems(meal.items)
+    if (!meal) return
+    setItems(meal.items)
+    setProductName(meal.name)
+    setPortionUnit(meal.portion_unit)
+    const basis = meal.items.length ? totalsFromItems(meal.items).portion_g : meal.portion_g
+    setPortion(basis ? String(Math.round(basis)) : '')
   }, [meal])
 
   if (isLoading) {
@@ -79,6 +105,35 @@ export function MealDetailSheet({ mealId, onClose }: { mealId: number; onClose: 
     hasComposition &&
     JSON.stringify(items.map((item) => item.grams)) !==
       JSON.stringify(meal.items.map((item) => item.grams))
+
+  // Масса, к которой относятся показанные цифры: сумма состава либо порция записи.
+  const basisPortion = computed?.portion_g || meal.portion_g || 0
+  const targetPortion = toNumber(portion)
+  // Без известной массы записи пересчитывать не от чего — сохраняем как есть.
+  const portionFactor =
+    basisPortion > 0 && targetPortion !== null && targetPortion > 0
+      ? targetPortion / basisPortion
+      : 1
+  const shownFiber = computed?.fiber_g ?? meal.fiber_g
+  const productValues = {
+    calories_kcal: roundTo(shown.calories_kcal * portionFactor, 1),
+    protein_g: roundTo(shown.protein_g * portionFactor, 1),
+    fat_g: roundTo(shown.fat_g * portionFactor, 1),
+    carbs_g: roundTo(shown.carbs_g * portionFactor, 1),
+    fiber_g: roundTo(shownFiber * portionFactor, 1),
+    micros: Object.fromEntries(
+      Object.entries(shown.micros).map(([key, value]) => [key, roundTo(value * portionFactor, 3)]),
+    ),
+  }
+
+  const onSaveProduct = () => {
+    addProduct.mutate({
+      name: productName.trim() || meal.name,
+      ...productValues,
+      portion_g: targetPortion,
+      portion_unit: portionUnit,
+    })
+  }
 
   const microRows = contributionRows(
     shown.micros,
@@ -169,6 +224,78 @@ export function MealDetailSheet({ mealId, onClose }: { mealId: number; onClose: 
           ИИ-разбор.
         </p>
       )}
+
+      <section className="sheet-section">
+        <div className="sheet-section__head">
+          <h3 className="section-label">Свои продукты</h3>
+          {!saveOpen && (
+            <button type="button" className="link-btn" onClick={() => setSaveOpen(true)}>
+              Сохранить продукт
+            </button>
+          )}
+        </div>
+
+        {!saveOpen ? (
+          <p className="footnote">
+            Сохраните это блюдо продуктом — и в следующий раз добавляйте его из поиска,
+            не описывая заново.
+          </p>
+        ) : (
+          <>
+            <Field label="Название продукта" value={productName} onChange={setProductName} />
+            <PortionField
+              label="Порция"
+              value={portion}
+              unit={portionUnit}
+              onChange={setPortion}
+              onUnitChange={setPortionUnit}
+            />
+
+            <div className="meal-macros" style={{ marginTop: 10 }}>
+              <Tile
+                label="Ккал"
+                value={num(productValues.calories_kcal)}
+                color="var(--color-accent-300)"
+              />
+              <Tile label="Белки" value={num(productValues.protein_g, 1)} />
+              <Tile label="Жиры" value={num(productValues.fat_g, 1)} />
+              <Tile label="Углев." value={num(productValues.carbs_g, 1)} />
+            </div>
+
+            <p className="footnote">
+              {basisPortion > 0
+                ? `Состав пересчитан с ${num(basisPortion)} ${meal.portion_unit} записи на порцию продукта — витамины и минералы тоже.`
+                : 'У записи нет массы, поэтому пересчитывать не от чего: продукт сохранится с цифрами всей записи, а порция станет подписью.'}
+            </p>
+
+            <div className="ai-actions">
+              <button
+                type="button"
+                className="btn btn--sm btn--neutral"
+                onClick={() => setSaveOpen(false)}
+              >
+                Свернуть
+              </button>
+              <button
+                type="button"
+                className="btn btn--sm btn--accent"
+                disabled={addProduct.isPending || !productName.trim()}
+                onClick={onSaveProduct}
+              >
+                {addProduct.isPending ? 'Сохраняю…' : 'В свои продукты'}
+              </button>
+            </div>
+
+            {addProduct.isError && <ErrorNote message={addProduct.error.message} />}
+            {addProduct.isSuccess && (
+              <p className="footnote">
+                «{addProduct.data.name}» сохранён — ищите его во вкладке «Поиск» при добавлении
+                блюда.
+              </p>
+            )}
+          </>
+        )}
+      </section>
 
       {microRows.length > 0 && (
         <section className="sheet-section">

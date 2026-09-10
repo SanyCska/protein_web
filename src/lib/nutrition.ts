@@ -1,4 +1,8 @@
-import type { MealItem, MealType, Per100 } from '@/api/types'
+import { roundTo } from '@/lib/format'
+import type { MealItem, MealType, Per100, PortionUnit } from '@/api/types'
+
+/** Граммы для еды, миллилитры для напитков. Между собой не пересчитываются. */
+export const PORTION_UNITS: PortionUnit[] = ['г', 'мл']
 
 export const MACRO_KEYS = ['calories_kcal', 'protein_g', 'fat_g', 'carbs_g', 'fiber_g'] as const
 
@@ -51,6 +55,39 @@ export function totalsFromItems(items: MealItem[]): MealTotals {
 export function scalePer100(per100: Per100, grams: number): Record<string, number> {
   const factor = grams / 100
   return Object.fromEntries(Object.entries(per100).map(([key, value]) => [key, value * factor]))
+}
+
+export interface PortionValues {
+  calories_kcal: number
+  protein_g: number
+  fat_g: number
+  carbs_g: number
+  fiber_g: number
+  micros: Record<string, number>
+}
+
+/**
+ * Состав на 100 г → состав порции. Нужен там, где пользователь двигает граммовку
+ * продукта со снятой этикетки: КБЖУ и микронутриенты должны ехать за ней вместе.
+ */
+export function portionFromPer100(per100: Per100, grams: number): PortionValues {
+  const scaled = scalePer100(per100, grams)
+  // Округляем сразу: эти числа идут и в поля ввода, и в API, а 0.6000000000000001
+  // в поле «B12» выглядит поломкой.
+  const micros: Record<string, number> = {}
+  for (const [key, value] of Object.entries(scaled)) {
+    if (!MACRO_SET.has(key)) micros[key] = roundTo(value, 3)
+  }
+  const fiber = roundTo(Math.max(scaled.fiber_g ?? 0, micros.fiber ?? 0), 3)
+  if (fiber > 0) micros.fiber = fiber
+  return {
+    calories_kcal: roundTo(scaled.calories_kcal ?? 0, 1),
+    protein_g: roundTo(scaled.protein_g ?? 0, 1),
+    fat_g: roundTo(scaled.fat_g ?? 0, 1),
+    carbs_g: roundTo(scaled.carbs_g ?? 0, 1),
+    fiber_g: fiber,
+    micros,
+  }
 }
 
 /** Цвет полосы по проценту нормы — единая шкала для всех прогресс-баров. */

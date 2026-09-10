@@ -3,6 +3,8 @@ export type Goal = 'lose' | 'maintain' | 'gain'
 export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'other'
 export type Frequency = 'daily' | 'every_other_day' | 'course'
 export type PeriodRange = 'week' | 'month'
+/** Порцию меряем массой или объёмом; пересчёта между ними нет — плотность неизвестна. */
+export type PortionUnit = 'г' | 'мл'
 
 /** КБЖУ и микронутриенты на 100 г продукта. */
 export type Per100 = Record<string, number>
@@ -11,6 +13,9 @@ export type Micros = Record<string, number>
 export interface Norms {
   bmr: number
   calories: number
+  /** Что даёт формула — показываем рядом со своей нормой. */
+  calories_computed: number
+  calories_source: 'computed' | 'manual'
   protein_g: number
   fat_g: number
   carbs_g: number
@@ -37,6 +42,7 @@ export interface Meal {
   carbs_g: number
   fiber_g: number
   portion_g: number | null
+  portion_unit: PortionUnit
   meal_type: MealType
   eaten_at: string | null
   ingredients: string | null
@@ -53,6 +59,7 @@ export interface MealInput {
   carbs_g?: number | null
   fiber_g?: number | null
   portion_g?: number | null
+  portion_unit?: PortionUnit
   meal_type?: MealType
   eaten_at?: string | null
   ingredients?: string | null
@@ -102,9 +109,27 @@ export interface Profile {
   weight_kg: number
   activity: number
   body_fat_pct: number | null
+  /** Своя норма калорий; null — считать по формуле. */
+  calories_override: number | null
   goal: Goal
   first_name: string | null
   norms: Norms
+}
+
+export interface ProductMicroEstimate {
+  portion_g: number
+  per100: Micros
+  micros: Micros
+  fiber_g: number
+  confidence: string
+  comment: string
+}
+
+export interface ProductsEstimateResult {
+  updated: Product[]
+  failed: number
+  remaining: number
+  error: string | null
 }
 
 export interface Product {
@@ -116,6 +141,7 @@ export interface Product {
   carbs_g: number | null
   fiber_g: number | null
   portion_g: number | null
+  portion_unit: PortionUnit
   micros: Micros
 }
 
@@ -253,6 +279,41 @@ export interface AiParseResult {
   fiber_g: number
   micros: Micros
   items: AiParsedItem[]
+  confidence: string
+  comment: string
+}
+
+/** Состав продукта, снятый ИИ с фото упаковки. */
+export interface AiLabelResult {
+  name: string
+  /** Порция с упаковки в единицах portion_unit; null — на упаковке её нет. */
+  portion_g: number | null
+  portion_unit: PortionUnit
+  /** КБЖУ и микронутриенты на 100 г или 100 мл. */
+  per100: Per100
+  /** КБЖУ порции — то, что подставляем в форму. */
+  calories_kcal: number
+  protein_g: number
+  fat_g: number
+  carbs_g: number
+  fiber_g: number
+  micros: Micros
+  confidence: string
+  comment: string
+}
+
+export interface AiSupplementItem {
+  name: string
+  nutrient_key: string | null
+  dose: number
+  unit: string
+}
+
+/** Этикетка банки: у мультивитаминов это сразу десяток веществ. */
+export interface AiSupplementLabelResult {
+  name: string
+  items: AiSupplementItem[]
+  when_label: string | null
   confidence: string
   comment: string
 }

@@ -1,7 +1,10 @@
-import type { CSSProperties, ReactNode } from 'react'
+import { useRef, type CSSProperties, type ReactNode } from 'react'
 
+import type { PortionUnit } from '@/api/types'
 import { clamp, nutrientValue, num } from '@/lib/format'
-import { barColor } from '@/lib/nutrition'
+import { PORTION_UNITS, barColor } from '@/lib/nutrition'
+import { readPhoto } from '@/lib/photo'
+import { Icon } from './Icon'
 import './ui.css'
 
 export function Card({
@@ -252,6 +255,101 @@ export function Field({
       />
       {error && <span className="field__error">{error}</span>}
     </label>
+  )
+}
+
+/**
+ * Выбор фото этикетки. Скрытый input живёт внутри: снимок состава нужен в трёх
+ * шитах, и каждый раз заводить свой ref с обработчиком — это три копии одного кода.
+ */
+export function PhotoButton({
+  label,
+  onPick,
+  onError,
+  disabled = false,
+  accent = false,
+}: {
+  label: string
+  onPick: (dataUrl: string) => void
+  onError: (message: string) => void
+  disabled?: boolean
+  accent?: boolean
+}) {
+  const input = useRef<HTMLInputElement>(null)
+  return (
+    <>
+      <button
+        type="button"
+        className={accent ? 'btn btn--sm btn--accent' : 'btn btn--sm btn--neutral'}
+        disabled={disabled}
+        onClick={() => input.current?.click()}
+      >
+        <Icon name="camera" size={14} color={accent ? 'var(--color-accent-300)' : undefined} />
+        {label}
+      </button>
+      <input
+        ref={input}
+        type="file"
+        accept="image/*"
+        className="sr-only"
+        aria-label={label}
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          // Сбрасываем значение: без этого повторный выбор того же файла не даст change.
+          event.target.value = ''
+          if (!file) return
+          readPhoto(file).then(onPick, (error: Error) => onError(error.message))
+        }}
+      />
+    </>
+  )
+}
+
+/** Порция с выбором единицы: еду считаем в граммах, напитки — в миллилитрах. */
+export function PortionField({
+  label = 'Порция',
+  value,
+  unit,
+  onChange,
+  onUnitChange,
+  disabled = false,
+}: {
+  label?: string
+  value: string
+  unit: PortionUnit
+  onChange: (value: string) => void
+  onUnitChange: (unit: PortionUnit) => void
+  disabled?: boolean
+}) {
+  return (
+    <div className="portion-field">
+      <label className="field">
+        <span className="field__label">{label}</span>
+        <input
+          className="field__input field__input--mono"
+          inputMode="decimal"
+          value={value}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </label>
+      <label className="field portion-field__unit">
+        <span className="field__label">Единица</span>
+        <select
+          className="field__input"
+          value={unit}
+          disabled={disabled}
+          aria-label="Единица порции"
+          onChange={(event) => onUnitChange(event.target.value as PortionUnit)}
+        >
+          {PORTION_UNITS.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
   )
 }
 

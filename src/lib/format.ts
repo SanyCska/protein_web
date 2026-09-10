@@ -102,6 +102,22 @@ export function pct(value: number, of: number): number {
   return of > 0 ? Math.round((value / of) * 100) : 0
 }
 
+/**
+ * Число из поля ввода: пустое поле и мусор — это «не указано», а не ноль.
+ * Запятую принимаем наравне с точкой: на телефоне она и стоит в цифровой раскладке.
+ */
+export function toNumber(value: string): number | null {
+  if (!value.trim()) return null
+  const parsed = Number(value.replace(',', '.'))
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null
+}
+
+/** Округление до знака: числа уходят в API и в поля ввода, где 0.30000000000000004 недопустим. */
+export function roundTo(value: number, digits = 0): number {
+  const factor = 10 ** digits
+  return Math.round(value * factor) / factor
+}
+
 export function clamp(value: number, low: number, high: number): number {
   return Math.max(low, Math.min(high, value))
 }
