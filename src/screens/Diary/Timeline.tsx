@@ -129,12 +129,13 @@ export function Timeline({
             >
               <div className="event__head">
                 <span className="event__title">{workout.kind_name}</span>
+                {/* Без минуса: расход не вычитается из съеденного, это отдельная цифра. */}
                 <span className="event__kcal mn" style={{ color: 'var(--color-accent-400)' }}>
-                  −{num(workout.kcal)}
+                  {num(workout.kcal)}
                 </span>
               </div>
               <p className="event__caption">
-                {minutesLabel(workout.minutes)}
+                {minutesLabel(workout.minutes)} · {num(workout.kcal)} ккал
                 {workout.note ? ` · ${workout.note}` : ''}
               </p>
             </EventRow>

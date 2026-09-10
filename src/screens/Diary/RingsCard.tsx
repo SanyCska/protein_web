@@ -101,8 +101,9 @@ export function RingsCard({ totals, norms }: { totals: DayTotals; norms: Norms }
   const lines: { label: string; value: string; color: string }[] = [
     { label: 'Съедено', value: num(totals.calories_eaten), color: 'var(--color-text)' },
     {
-      label: 'Потрачено',
-      value: totals.calories_burned > 0 ? `−${num(totals.calories_burned)}` : '0',
+      // Без минуса: расход не вычитается из съеденного, он идёт справочной строкой.
+      label: 'Нагрузка',
+      value: num(totals.calories_burned),
       color: 'var(--color-accent-400)',
     },
     { label: 'Норма', value: num(norms.calories), color: 'var(--color-neutral-400)' },

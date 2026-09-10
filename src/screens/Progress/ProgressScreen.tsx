@@ -99,7 +99,7 @@ export function ProgressScreen() {
       </Card>
 
       <Card>
-        <CardHead title="Чистый баланс" meta="съедено − потрачено − норма" />
+        <CardHead title="Баланс к норме" meta="съедено − норма" />
         <NetChart days={data.days} values={data.net} />
         <p className="chart__footer" style={{ display: 'block', lineHeight: 1.5 }}>
           {data.summary}

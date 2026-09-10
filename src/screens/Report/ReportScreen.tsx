@@ -61,7 +61,7 @@ function DayReport({ day, onAddSupplement }: { day: string; onAddSupplement: () 
         <div className="energy-grid">
           <Tile label="Съедено" value={num(data.totals.calories_eaten)} />
           <Tile
-            label="Потрачено"
+            label="Нагрузка"
             value={num(data.totals.calories_burned)}
             color="var(--color-accent-400)"
           />
@@ -72,8 +72,9 @@ function DayReport({ day, onAddSupplement }: { day: string; onAddSupplement: () 
           />
         </div>
         <p className="coverage-note">
-          Итог к норме — это съеденное минус потраченное на нагрузке и минус дневная норма.
-          Отрицательное число означает дефицит калорий за день.
+          Итог к норме — это съеденное минус дневная норма; отрицательное число означает
+          дефицит калорий за день. Расход на нагрузке в него не входит и норму не поднимает —
+          он показан отдельно и подробнее разложен на экране «Прогресс».
         </p>
       </Card>
 

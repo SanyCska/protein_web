@@ -145,12 +145,13 @@ export function ProfileScreen() {
             <>
               Норма задана вручную. Формула для ваших параметров даёт{' '}
               {num(norms.calories_computed)} ккал, разницу забирают углеводы. Нагрузка
-              из дневника добавляется сверху в тот же день.
+              норму не поднимает — она идёт отдельной строкой и графиком.
             </>
           ) : (
             <>
               BMR {num(norms.bmr)} ккал × {norms.activity_factor.toFixed(2)} активности,{' '}
-              {GOAL_NOTE[profile.goal]}. Нагрузка из дневника добавляется сверху в тот же день.
+              {GOAL_NOTE[profile.goal]}. Нагрузка норму не поднимает — она идёт отдельной
+              строкой и графиком.
             </>
           )}
         </p>
@@ -182,16 +183,19 @@ export function ProfileScreen() {
                   group.active ? 'supplement-row' : 'supplement-row supplement-row--inactive'
                 }
               >
-                <Icon name="pill" size={15} color="var(--color-accent)" />
-                <div className="supplement-row__body">
-                  {/* Тап по названию открывает правку: дозы с этикетки ИИ иногда читает
-                      неверно, и поправить их надо уметь, не заводя банку заново. */}
-                  <button
-                    type="button"
-                    className="supplement-row__open"
-                    onClick={() => openSheet('supplement', { supplementKey: group.key })}
-                  >
-                    <span className="supplement-row__name">{group.name}</span>
+                {/* Карточка целиком открывает правку: тапают и по названию, и по составу,
+                    и по дозе — угадывать, где именно нажать, пользователь не должен. */}
+                <button
+                  type="button"
+                  className="supplement-row__open"
+                  onClick={() => openSheet('supplement', { supplementKey: group.key })}
+                >
+                  <Icon name="pill" size={15} color="var(--color-accent)" />
+                  <span className="supplement-row__body">
+                    <span className="supplement-row__name">
+                      {group.name}
+                      <Icon name="caret-right" size={11} color="var(--color-neutral-600)" />
+                    </span>
                     <span className="supplement-row__meta">
                       {group.whenLabel ?? 'в любое время'}
                       {group.frequency === 'every_other_day' && ' · через день'}
@@ -200,25 +204,25 @@ export function ProfileScreen() {
                       {servingRatioLabel(group) && ` · ${servingRatioLabel(group)}`}
                       {!group.active && ' · выключена'}
                     </span>
-                  </button>
-                  {!single && (
-                    <ul className="supplement-row__parts">
-                      {group.items.map((item) => (
-                        <li key={item.id}>
-                          <span>{item.name}</span>
-                          <span className="mn">
-                            {doseValue(item.effective_dose)} {item.unit}
+                    {!single && (
+                      <span className="supplement-row__parts">
+                        {group.items.map((item) => (
+                          <span className="supplement-row__part" key={item.id}>
+                            <span>{item.name}</span>
+                            <span className="mn">
+                              {doseValue(item.effective_dose)} {item.unit}
+                            </span>
                           </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-                <span className="supplement-row__dose">
-                  {single
-                    ? `${doseValue(single.effective_dose)} ${single.unit}`
-                    : substancesLabel(group.items.length)}
-                </span>
+                        ))}
+                      </span>
+                    )}
+                  </span>
+                  <span className="supplement-row__dose">
+                    {single
+                      ? `${doseValue(single.effective_dose)} ${single.unit}`
+                      : substancesLabel(group.items.length)}
+                  </span>
+                </button>
                 <button
                   type="button"
                   className="supplement-row__remove"
@@ -236,8 +240,8 @@ export function ProfileScreen() {
           })
         )}
         <p className="footnote">
-          Учитываются в дневной норме и в отчётах по микронутриентам. Тап по названию —
-          поправить состав и дозы.
+          Учитываются в дневной норме и в отчётах по микронутриентам. Тап по добавке —
+          поправить состав, дозы и долю приёма.
         </p>
       </Card>
 
