@@ -93,6 +93,8 @@ export interface WorkoutTemplate {
 export interface Supplement {
   id: number
   name: string
+  /** Название банки: по нему вещества собираются в одну добавку. null — сама себе банка. */
+  group_name: string | null
   nutrient_key: string | null
   dose: number
   unit: string

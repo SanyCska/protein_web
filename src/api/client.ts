@@ -151,8 +151,9 @@ export const api = {
 
   supplements: () => get<Supplement[]>('/supplements'),
   addSupplement: (payload: Omit<Supplement, 'id'>) => post<Supplement>('/supplements', payload),
-  addSupplements: (items: Omit<Supplement, 'id'>[]) =>
-    post<Supplement[]>('/supplements/bulk', { items }),
+  addSupplements: (payload: { name: string; items: Omit<Supplement, 'id' | 'group_name'>[] }) =>
+    post<Supplement[]>('/supplements/bulk', payload),
+  deleteSupplements: (ids: number[]) => post<void>('/supplements/bulk-delete', { ids }),
   updateSupplement: (id: number, payload: Partial<Omit<Supplement, 'id'>>) =>
     patch<Supplement>(`/supplements/${id}`, payload),
   deleteSupplement: (id: number) => del(`/supplements/${id}`),

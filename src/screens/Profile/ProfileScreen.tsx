@@ -1,7 +1,7 @@
 import {
   useAddWorkout,
   useDeleteProduct,
-  useDeleteSupplement,
+  useDeleteSupplements,
   useDeleteTemplate,
   useEstimateProducts,
   useProducts,
@@ -22,6 +22,7 @@ import {
 } from '@/components/primitives'
 import { haptic } from '@/api/telegram'
 import { doseValue, minutesLabel, nowTime, num, today } from '@/lib/format'
+import { groupSupplements, substancesLabel } from '@/lib/supplements'
 import type { Goal } from '@/api/types'
 import './profile.css'
 
@@ -46,7 +47,7 @@ export function ProfileScreen() {
   const { data: products = [] } = useProducts('')
 
   const saveProfile = useSaveProfile()
-  const deleteSupplement = useDeleteSupplement()
+  const deleteSupplements = useDeleteSupplements()
   const deleteTemplate = useDeleteTemplate()
   const deleteProduct = useDeleteProduct()
   const estimateProducts = useEstimateProducts()
@@ -170,36 +171,59 @@ export function ProfileScreen() {
             в дневной норме и в отчётах.
           </p>
         ) : (
-          supplements.map((supplement) => (
-            <div
-              key={supplement.id}
-              className={
-                supplement.active ? 'supplement-row' : 'supplement-row supplement-row--inactive'
-              }
-            >
-              <Icon name="pill" size={15} color="var(--color-accent)" />
-              <div className="supplement-row__body">
-                <div className="supplement-row__name">{supplement.name}</div>
-                <div className="supplement-row__meta">
-                  {supplement.when_label ?? 'в любое время'}
-                  {supplement.frequency === 'every_other_day' && ' · через день'}
-                  {supplement.frequency === 'course' && ' · курс'}
-                  {!supplement.active && ' · выключена'}
-                </div>
-              </div>
-              <span className="supplement-row__dose">
-                {doseValue(supplement.dose)} {supplement.unit}
-              </span>
-              <button
-                type="button"
-                className="supplement-row__remove"
-                aria-label={`Удалить ${supplement.name}`}
-                onClick={() => deleteSupplement.mutate(supplement.id)}
+          // Банка — одна строка, даже если веществ в ней десяток: состав раскрывается
+          // под названием, а удаляется она целиком.
+          groupSupplements(supplements).map((group) => {
+            const single = group.items.length === 1 ? group.items[0] : null
+            return (
+              <div
+                key={group.key}
+                className={
+                  group.active ? 'supplement-row' : 'supplement-row supplement-row--inactive'
+                }
               >
-                <Icon name="trash" size={14} />
-              </button>
-            </div>
-          ))
+                <Icon name="pill" size={15} color="var(--color-accent)" />
+                <div className="supplement-row__body">
+                  <div className="supplement-row__name">{group.name}</div>
+                  <div className="supplement-row__meta">
+                    {group.whenLabel ?? 'в любое время'}
+                    {group.frequency === 'every_other_day' && ' · через день'}
+                    {group.frequency === 'course' && ' · курс'}
+                    {!group.active && ' · выключена'}
+                  </div>
+                  {!single && (
+                    <ul className="supplement-row__parts">
+                      {group.items.map((item) => (
+                        <li key={item.id}>
+                          <span>{item.name}</span>
+                          <span className="mn">
+                            {doseValue(item.dose)} {item.unit}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <span className="supplement-row__dose">
+                  {single
+                    ? `${doseValue(single.dose)} ${single.unit}`
+                    : substancesLabel(group.items.length)}
+                </span>
+                <button
+                  type="button"
+                  className="supplement-row__remove"
+                  aria-label={`Удалить ${group.name}`}
+                  onClick={() => {
+                    if (single || window.confirm(`Удалить «${group.name}» со всем составом?`)) {
+                      deleteSupplements.mutate(group.ids)
+                    }
+                  }}
+                >
+                  <Icon name="trash" size={14} />
+                </button>
+              </div>
+            )
+          })
         )}
         <p className="footnote">Учитываются в дневной норме и в отчётах по микронутриентам.</p>
       </Card>

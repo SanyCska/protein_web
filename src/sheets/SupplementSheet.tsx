@@ -64,6 +64,9 @@ export function SupplementSheet({ onClose }: { onClose: () => void }) {
   const addSupplements = useAddSupplements()
   const parseLabel = useParseSupplementLabel()
 
+  // Название банки: одна добавка — одна запись в списке, сколько бы веществ
+  // ни было в составе. Его же видно в ленте дня.
+  const [name, setName] = useState('')
   const [rows, setRows] = useState<Row[]>([emptyRow()])
   // Сколько единиц приёма принимает пользователь и на сколько их считает этикетка:
   // таблица на банке часто дана на две капсулы, а пьют одну.
@@ -107,6 +110,7 @@ export function SupplementSheet({ onClose }: { onClose: () => void }) {
     )
     setLabel({ serving: result.serving, unit: result.serving_unit })
     setServing(String(result.serving))
+    if (!name.trim()) setName(result.name)
     if (result.when_label && WHEN_OPTIONS.includes(result.when_label)) {
       setWhenLabel(result.when_label)
     }
@@ -129,6 +133,10 @@ export function SupplementSheet({ onClose }: { onClose: () => void }) {
   }
 
   const onSave = () => {
+    if (!name.trim()) {
+      setFormError('Укажите название добавки')
+      return
+    }
     const payload = []
     for (const [index, row] of rows.entries()) {
       const dose = toNumber(row.dose)
@@ -151,14 +159,14 @@ export function SupplementSheet({ onClose }: { onClose: () => void }) {
       })
     }
     setFormError(null)
-    addSupplements.mutate(payload, { onSuccess: onClose })
+    addSupplements.mutate({ name: name.trim(), items: payload }, { onSuccess: onClose })
   }
 
   const counted = rows.filter((row) => row.nutrientKey).length
 
   return (
     <Sheet
-      title={rows.length > 1 ? `Новые добавки · ${rows.length}` : 'Новая добавка'}
+      title="Новая добавка"
       onClose={onClose}
       footer={
         <>
@@ -202,6 +210,17 @@ export function SupplementSheet({ onClose }: { onClose: () => void }) {
         </p>
       )}
 
+      <Field
+        label="Название добавки"
+        value={name}
+        onChange={setName}
+        placeholder="Например, Мультивитамины Solgar"
+      />
+      <p className="footnote">
+        Под этим названием добавка встанет одной строкой в списке и в ленте дня, сколько бы
+        веществ ни было в составе. В отчёт по микронутриентам попадёт каждое вещество.
+      </p>
+
       {label && (
         <>
           <div className="portion-field">
@@ -228,6 +247,10 @@ export function SupplementSheet({ onClose }: { onClose: () => void }) {
           </p>
         </>
       )}
+
+      <h3 className="section-label" style={{ marginTop: 14 }}>
+        Состав{rows.length > 1 ? ` · ${rows.length}` : ''}
+      </h3>
 
       {rows.map((row, index) => (
         <div className="supp-item" key={row.key}>

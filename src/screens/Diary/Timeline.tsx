@@ -2,12 +2,13 @@ import type { Meal, Supplement, Workout } from '@/api/types'
 import { Icon } from '@/components/Icon'
 import { doseValue, minutesLabel, num } from '@/lib/format'
 import { MEAL_TYPE_ICONS } from '@/lib/nutrition'
+import { groupSupplements, substancesLabel, type SupplementGroup } from '@/lib/supplements'
 import './diary.css'
 
 type Event =
   | { kind: 'meal'; time: string; meal: Meal }
   | { kind: 'workout'; time: string; workout: Workout }
-  | { kind: 'supplement'; time: string; supplement: Supplement }
+  | { kind: 'supplement'; time: string; group: SupplementGroup }
 
 /** Записи без времени уезжают в конец дня — так лента остаётся читаемой. */
 const NO_TIME = '99:99'
@@ -24,10 +25,12 @@ export function buildEvents(
       time: workout.done_at ?? NO_TIME,
       workout,
     })),
-    ...supplements.map<Event>((supplement) => ({
+    // Банка идёт одной строкой: десять веществ с этикетки не должны занимать
+    // десять строк ленты.
+    ...groupSupplements(supplements).map<Event>((group) => ({
       kind: 'supplement',
       time: NO_TIME,
-      supplement,
+      group,
     })),
   ]
   return events.sort((a, b) => a.time.localeCompare(b.time))
@@ -138,18 +141,21 @@ export function Timeline({
           )
         }
 
-        const { supplement } = event
+        const { group } = event
+        const single = group.items.length === 1 ? group.items[0] : null
         return (
-          <EventRow key={`supplement-${supplement.id}`} icon="pill" time={event.time}>
+          <EventRow key={`supplement-${group.key}`} icon="pill" time={event.time}>
             <div className="event__head">
-              <span className="event__title">{supplement.name}</span>
+              <span className="event__title">{group.name}</span>
               <span className="event__kcal mn" style={{ color: 'var(--color-neutral-600)' }}>
                 —
               </span>
             </div>
             <p className="event__caption">
-              {doseValue(supplement.dose)} {supplement.unit}
-              {supplement.when_label ? ` · ${supplement.when_label}` : ''}
+              {single
+                ? `${doseValue(single.dose)} ${single.unit}`
+                : substancesLabel(group.items.length)}
+              {group.whenLabel ? ` · ${group.whenLabel}` : ''}
             </p>
           </EventRow>
         )

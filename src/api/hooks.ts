@@ -165,19 +165,22 @@ export function useAddSupplement() {
   return useDataMutation((payload: Omit<Supplement, 'id'>) => api.addSupplement(payload))
 }
 
-/** Сохранение всей этикетки разом: с банки мультивитаминов приезжает десяток веществ. */
+/** Банка целиком: у мультивитаминов это десяток веществ под одним названием. */
 export function useAddSupplements() {
-  return useDataMutation((items: Omit<Supplement, 'id'>[]) => api.addSupplements(items))
+  return useDataMutation(
+    (payload: { name: string; items: Omit<Supplement, 'id' | 'group_name'>[] }) =>
+      api.addSupplements(payload),
+  )
+}
+
+export function useDeleteSupplements() {
+  return useDataMutation((ids: number[]) => api.deleteSupplements(ids))
 }
 
 export function useUpdateSupplement() {
   return useDataMutation((vars: { id: number; payload: Partial<Omit<Supplement, 'id'>> }) =>
     api.updateSupplement(vars.id, vars.payload),
   )
-}
-
-export function useDeleteSupplement() {
-  return useDataMutation((id: number) => api.deleteSupplement(id))
 }
 
 export function useParseMeal() {

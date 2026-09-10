@@ -43,7 +43,8 @@
 
 .supplement-row {
   display: flex;
-  align-items: center;
+  /* Состав банки уезжает вниз, поэтому строка выравнивается по верху, а не по центру. */
+  align-items: flex-start;
   gap: 10px;
   padding: 9px 0;
   border-bottom: 1px solid var(--color-neutral-900);
@@ -66,6 +67,25 @@
 .supplement-row__meta {
   font-size: 10.5px;
   color: var(--color-neutral-600);
+}
+
+.supplement-row__parts {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.supplement-row__parts li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 10.5px;
+  color: var(--color-neutral-500);
+}
+
+.supplement-row__parts .mn {
+  color: var(--color-neutral-400);
 }
 
 .supplement-row__dose {
