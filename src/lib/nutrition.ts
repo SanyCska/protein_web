@@ -57,6 +57,16 @@ export function scalePer100(per100: Per100, grams: number): Record<string, numbe
   return Object.fromEntries(Object.entries(per100).map(([key, value]) => [key, value * factor]))
 }
 
+/**
+ * Во сколько раз съеденное отличается от порции, на которую указаны КБЖУ.
+ * Неизвестная или нулевая основа — считаем один к одному: выдумывать 100 г
+ * за пользователя хуже, чем засчитать то, что он ввёл.
+ */
+export function portionFactor(basis: number | null, eaten: number | null): number {
+  if (!basis || basis <= 0 || !eaten || eaten <= 0) return 1
+  return eaten / basis
+}
+
 export interface PortionValues {
   calories_kcal: number
   protein_g: number

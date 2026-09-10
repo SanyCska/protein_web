@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 
 import {
   useAddMeal,
+  useAddProduct,
   useEstimateMicros,
   useParseLabel,
   useParseMeal,
@@ -20,7 +21,12 @@ import {
   Stepper,
 } from '@/components/primitives'
 import { num, nowTime, roundTo, toNumber } from '@/lib/format'
-import { guessMealType, portionFromPer100, totalsFromItems } from '@/lib/nutrition'
+import {
+  guessMealType,
+  portionFactor,
+  portionFromPer100,
+  totalsFromItems,
+} from '@/lib/nutrition'
 import './sheets.css'
 
 type Mode = 'ai' | 'search' | 'manual'
@@ -39,7 +45,10 @@ const CONFIDENCE_LABELS: Record<string, string> = {
 
 interface ManualForm {
   name: string
+  /** На какую порцию указаны КБЖУ ниже — как на упаковке. */
   portion: string
+  /** Сколько съедено сейчас; пусто — съедена ровно та порция, что указана. */
+  eaten: string
   kcal: string
   protein: string
   fat: string
@@ -50,6 +59,7 @@ interface ManualForm {
 const EMPTY_MANUAL: ManualForm = {
   name: '',
   portion: '',
+  eaten: '',
   kcal: '',
   protein: '',
   fat: '',
@@ -67,6 +77,9 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
   const [parsedName, setParsedName] = useState('')
   const [query, setQuery] = useState('')
   const [manual, setManual] = useState<ManualForm>(EMPTY_MANUAL)
+  // Выбранный в поиске продукт ждёт, пока укажут съеденное количество.
+  const [picked, setPicked] = useState<Product | null>(null)
+  const [pickedAmount, setPickedAmount] = useState('')
   const [portionUnit, setPortionUnit] = useState<PortionUnit>('г')
   // Состав на 100 г со снятой этикетки: пока он есть, правка граммовки пересчитывает
   // КБЖУ сама. Ручная правка любого макроса его сбрасывает — дальше цифры пользователя.
@@ -79,6 +92,7 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
 
   const parseMeal = useParseMeal()
   const parseLabel = useParseLabel()
+  const saveProduct = useAddProduct()
   const estimateMicros = useEstimateMicros()
   const addMeal = useAddMeal(day)
   // Поиск идёт по каждому нажатию — сглаживаем, чтобы не слать запрос на каждую букву.
@@ -96,6 +110,31 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
   const removedCount = Math.max((parsedItems?.length ?? 0) - (items?.length ?? 0), 0)
 
   const time = nowTime()
+
+  // КБЖУ в форме описывают порцию-основу («данные на 100 г»), а засчитать надо
+  // съеденное. Пустое «съел» — значит съедена ровно та порция, что указана.
+  const basisAmount = toNumber(manual.portion)
+  const eatenAmount = toNumber(manual.eaten) ?? basisAmount
+  const eatenFactor = portionFactor(basisAmount, eatenAmount)
+  const manualBasis = {
+    calories_kcal: toNumber(manual.kcal),
+    protein_g: toNumber(manual.protein) ?? 0,
+    fat_g: toNumber(manual.fat),
+    carbs_g: toNumber(manual.carbs),
+    fiber_g: toNumber(manual.fiber),
+  }
+  const scale = (value: number | null) =>
+    value === null ? null : roundTo(value * eatenFactor, 1)
+  const manualEaten = {
+    calories_kcal: scale(manualBasis.calories_kcal),
+    protein_g: scale(manualBasis.protein_g) ?? 0,
+    fat_g: scale(manualBasis.fat_g),
+    carbs_g: scale(manualBasis.carbs_g),
+    fiber_g: scale(manualBasis.fiber_g),
+    micros: Object.fromEntries(
+      Object.entries(manualMicros).map(([key, value]) => [key, roundTo(value * eatenFactor, 3)]),
+    ),
+  }
   // Разобранный ИИ состав относится только к режиму ИИ — в ручном режиме сохраняется форма.
   const totals = mode === 'ai' && items && items.length > 0 ? totalsFromItems(items) : null
 
@@ -123,21 +162,17 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
       }
     }
 
-    const kcal = toNumber(manual.kcal)
     return {
       name: manual.name.trim(),
-      calories_kcal: kcal,
-      protein_g: toNumber(manual.protein) ?? 0,
-      fat_g: toNumber(manual.fat),
-      carbs_g: toNumber(manual.carbs),
-      fiber_g: toNumber(manual.fiber),
-      portion_g: toNumber(manual.portion),
+      ...manualEaten,
+      portion_g: eatenAmount,
       portion_unit: portionUnit,
-      micros: manualMicros,
       meal_type: guessMealType(time),
       eaten_at: time,
       source: 'webapp_manual',
-      save_as_product: saveAsProduct,
+      // Продукт сохраняем сами: в справочник должна лечь порция-основа с её КБЖУ,
+      // а не то, сколько съели сегодня.
+      save_as_product: false,
     }
   }
 
@@ -147,29 +182,51 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
         setFormError('Укажите название блюда')
         return
       }
-      const kcal = toNumber(manual.kcal)
-      if (kcal === null || kcal <= 0) {
+      if (manualBasis.calories_kcal === null || manualBasis.calories_kcal <= 0) {
         setFormError('Калории должны быть больше нуля')
         return
+      }
+      if (saveAsProduct) {
+        // В справочник кладём порцию-основу: завтра её съедят в другом количестве.
+        saveProduct.mutate({
+          name: manual.name.trim(),
+          calories_kcal: manualBasis.calories_kcal,
+          protein_g: manualBasis.protein_g,
+          fat_g: manualBasis.fat_g,
+          carbs_g: manualBasis.carbs_g,
+          fiber_g: manualBasis.fiber_g,
+          portion_g: basisAmount,
+          portion_unit: portionUnit,
+          micros: manualMicros,
+        })
       }
     }
     setFormError(null)
     addMeal.mutate(savePayload(), { onSuccess: onClose })
   }
 
-  const addProduct = (product: Product) => {
-    // КБЖУ продукта — на его сохранённую порцию; если порция неизвестна, не выдумываем 100 г.
+  /**
+   * Продукт из справочника с пересчётом на съеденное. КБЖУ продукта относятся к его
+   * сохранённой порции; если она неизвестна, пересчитывать не от чего — добавляем как есть.
+   */
+  const addProduct = (product: Product, amount: number | null) => {
+    const basis = product.portion_g ?? 0
+    const factor = portionFactor(basis, amount)
+    const scale = (value: number | null) =>
+      value === null ? null : roundTo(value * factor, 1)
     addMeal.mutate(
       {
         name: product.name,
-        calories_kcal: product.calories_kcal,
-        protein_g: product.protein_g,
-        fat_g: product.fat_g,
-        carbs_g: product.carbs_g,
-        fiber_g: product.fiber_g,
-        portion_g: product.portion_g,
+        calories_kcal: scale(product.calories_kcal),
+        protein_g: scale(product.protein_g) ?? 0,
+        fat_g: scale(product.fat_g),
+        carbs_g: scale(product.carbs_g),
+        fiber_g: scale(product.fiber_g),
+        portion_g: basis > 0 ? (amount ?? basis) : product.portion_g,
         portion_unit: product.portion_unit,
-        micros: product.micros,
+        micros: Object.fromEntries(
+          Object.entries(product.micros).map(([key, value]) => [key, roundTo(value * factor, 3)]),
+        ),
         meal_type: guessMealType(time),
         eaten_at: time,
         source: 'webapp_product',
@@ -225,6 +282,7 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
     setManual({
       name: result.name,
       portion: String(portion),
+      eaten: String(portion),
       kcal: String(result.calories_kcal),
       protein: String(result.protein_g),
       fat: String(result.fat_g),
@@ -268,8 +326,8 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
 
   const footerLabel = totals
     ? `Сохранить ${num(totals.calories_kcal)} ккал`
-    : mode === 'manual' && toNumber(manual.kcal)
-      ? `Сохранить ${num(toNumber(manual.kcal) ?? 0)} ккал`
+    : mode === 'manual' && manualEaten.calories_kcal
+      ? `Сохранить ${num(manualEaten.calories_kcal)} ккал`
       : 'Сохранить'
 
   return (
@@ -427,6 +485,55 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
             />
           </div>
 
+          {picked && (
+            <div className="picked-product">
+              <div className="picked-product__head">
+                <span className="result-card__name">{picked.name}</span>
+                <button
+                  type="button"
+                  className="link-btn"
+                  onClick={() => setPicked(null)}
+                >
+                  Отмена
+                </button>
+              </div>
+              <p className="footnote">
+                Данные сохранены на {num(picked.portion_g ?? 0)} {picked.portion_unit} ·{' '}
+                {num(picked.calories_kcal ?? 0)} ккал.
+              </p>
+              <div className="portion-field">
+                <Field
+                  label={`Съел сейчас, ${picked.portion_unit}`}
+                  value={pickedAmount}
+                  mono
+                  accent
+                  inputMode="decimal"
+                  onChange={setPickedAmount}
+                />
+                <div className="field">
+                  <span className="field__label">Засчитаем</span>
+                  <div className="field__input serving-unit mn">
+                    {num(
+                      (picked.calories_kcal ?? 0) *
+                        ((toNumber(pickedAmount) ?? picked.portion_g ?? 0) /
+                          (picked.portion_g || 1)),
+                    )}{' '}
+                    ккал
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn btn--sm btn--accent btn--block"
+                style={{ marginTop: 10 }}
+                disabled={addMeal.isPending}
+                onClick={() => addProduct(picked, toNumber(pickedAmount))}
+              >
+                {addMeal.isPending ? 'Добавляю…' : 'Добавить в день'}
+              </button>
+            </div>
+          )}
+
           <div className="sheet-section">
             {isFetching && <p className="footnote">Ищем…</p>}
             {searchError && <ErrorNote message={searchError.message} />}
@@ -441,7 +548,15 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
                 key={product.id}
                 type="button"
                 className="result-card"
-                onClick={() => addProduct(product)}
+                onClick={() => {
+                  // Порция продукта известна — спрашиваем, сколько съели; иначе добавляем как есть.
+                  if (product.portion_g) {
+                    setPicked(product)
+                    setPickedAmount(String(product.portion_g))
+                  } else {
+                    addProduct(product, null)
+                  }
+                }}
               >
                 <div className="result-card__body">
                   <div className="result-card__name">{product.name}</div>
@@ -491,16 +606,17 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
             placeholder="Например, творог с ягодами"
           />
           <PortionField
+            label="Данные указаны на"
             value={manual.portion}
             unit={portionUnit}
             onChange={onPortionChange}
             onUnitChange={setPortionUnit}
           />
-          {labelPer100 && (
-            <p className="footnote">
-              Состав снят на 100 {portionUnit} — поменяйте порцию, и КБЖУ пересчитается.
-            </p>
-          )}
+          <p className="footnote">
+            {labelPer100
+              ? `Состав снят с упаковки на 100 ${portionUnit} — поменяйте это число, и КБЖУ пересчитается.`
+              : `Столько, на сколько написаны КБЖУ ниже: порция с упаковки или 100 ${portionUnit}.`}
+          </p>
           <div className="manual-grid">
             <Field
               label="Ккал"
@@ -539,6 +655,34 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
               onChange={setMacro('fiber')}
             />
           </div>
+          <section className="sheet-section">
+            <h3 className="section-label sheet-section__label">Сколько съедено</h3>
+            <div className="portion-field">
+              <Field
+                label={`Съел сейчас, ${portionUnit}`}
+                value={manual.eaten}
+                mono
+                accent
+                inputMode="decimal"
+                onChange={(eaten) => setManual((form) => ({ ...form, eaten }))}
+              />
+              <div className="field">
+                <span className="field__label">Засчитаем</span>
+                <div className="field__input serving-unit mn">
+                  {num(manualEaten.calories_kcal ?? 0)} ккал
+                </div>
+              </div>
+            </div>
+            <p className="footnote">
+              {eatenFactor === 1
+                ? 'Пусто — засчитаем ровно ту порцию, на которую указаны данные.'
+                : `Это ${Math.round(eatenFactor * 100)}% от указанной порции: Б${num(
+                    manualEaten.protein_g,
+                    1,
+                  )} Ж${num(manualEaten.fat_g ?? 0, 1)} У${num(manualEaten.carbs_g ?? 0, 1)}.`}
+            </p>
+          </section>
+
           <label className="checkbox-row">
             <input
               type="checkbox"
@@ -547,6 +691,12 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
             />
             Сохранить как своё блюдо для повторов
           </label>
+          {saveAsProduct && (
+            <p className="footnote">
+              В справочник попадёт порция-основа, а не сегодняшняя: {num(basisAmount ?? 0)}{' '}
+              {portionUnit} и КБЖУ на неё.
+            </p>
+          )}
 
           {/* Форму состава предлагаем там, где она окупается: продукт сохраняется
               надолго, и без витаминов он будет портить отчёт при каждом повторе. */}

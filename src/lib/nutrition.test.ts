@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { barColor, guessMealType, portionFromPer100, totalsFromItems } from './nutrition'
+import {
+  barColor,
+  guessMealType,
+  portionFactor,
+  portionFromPer100,
+  totalsFromItems,
+} from './nutrition'
 
 describe('totalsFromItems', () => {
   it('масштабирует значения per100 по граммовке', () => {
@@ -114,5 +120,28 @@ describe('portionFromPer100', () => {
     const portion = portionFromPer100(label, 0)
     expect(portion.calories_kcal).toBe(0)
     expect(portion.micros.calcium).toBe(0)
+  })
+})
+
+describe('portionFactor', () => {
+  it('съел больше указанного — множитель больше единицы', () => {
+    expect(portionFactor(100, 250)).toBe(2.5)
+  })
+
+  it('съел меньше — множитель меньше единицы', () => {
+    expect(portionFactor(200, 150)).toBe(0.75)
+  })
+
+  it('без съеденного засчитываем ровно указанную порцию', () => {
+    expect(portionFactor(200, null)).toBe(1)
+  })
+
+  it('без известной основы не пересчитываем', () => {
+    expect(portionFactor(null, 150)).toBe(1)
+    expect(portionFactor(0, 150)).toBe(1)
+  })
+
+  it('ноль съеденного не обнуляет запись', () => {
+    expect(portionFactor(100, 0)).toBe(1)
   })
 })

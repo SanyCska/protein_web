@@ -352,3 +352,19 @@
 .composition-row__input:focus-visible {
   box-shadow: 0 0 0 1px var(--color-accent);
 }
+
+/* Выбранный в поиске продукт: спрашиваем съеденное, прежде чем класть его в день. */
+.picked-product {
+  margin-top: 10px;
+  padding: 11px;
+  border-radius: var(--radius-tile);
+  background: var(--color-neutral-900);
+  box-shadow: 0 0 0 1px var(--color-accent-700);
+}
+
+.picked-product__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
