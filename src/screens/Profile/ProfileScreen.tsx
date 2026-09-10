@@ -184,13 +184,21 @@ export function ProfileScreen() {
               >
                 <Icon name="pill" size={15} color="var(--color-accent)" />
                 <div className="supplement-row__body">
-                  <div className="supplement-row__name">{group.name}</div>
-                  <div className="supplement-row__meta">
-                    {group.whenLabel ?? 'в любое время'}
-                    {group.frequency === 'every_other_day' && ' · через день'}
-                    {group.frequency === 'course' && ' · курс'}
-                    {!group.active && ' · выключена'}
-                  </div>
+                  {/* Тап по названию открывает правку: дозы с этикетки ИИ иногда читает
+                      неверно, и поправить их надо уметь, не заводя банку заново. */}
+                  <button
+                    type="button"
+                    className="supplement-row__open"
+                    onClick={() => openSheet('supplement', { supplementKey: group.key })}
+                  >
+                    <span className="supplement-row__name">{group.name}</span>
+                    <span className="supplement-row__meta">
+                      {group.whenLabel ?? 'в любое время'}
+                      {group.frequency === 'every_other_day' && ' · через день'}
+                      {group.frequency === 'course' && ' · курс'}
+                      {!group.active && ' · выключена'}
+                    </span>
+                  </button>
                   {!single && (
                     <ul className="supplement-row__parts">
                       {group.items.map((item) => (
@@ -225,7 +233,10 @@ export function ProfileScreen() {
             )
           })
         )}
-        <p className="footnote">Учитываются в дневной норме и в отчётах по микронутриентам.</p>
+        <p className="footnote">
+          Учитываются в дневной норме и в отчётах по микронутриентам. Тап по названию —
+          поправить состав и дозы.
+        </p>
       </Card>
 
       <Card>

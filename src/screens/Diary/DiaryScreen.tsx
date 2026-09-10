@@ -68,7 +68,7 @@ export function DiaryScreen() {
           meals={data.meals}
           workouts={data.workouts}
           supplements={data.supplements}
-          onOpenMeal={(id) => openSheet('meal', id)}
+          onOpenMeal={(id) => openSheet('meal', { mealId: id })}
         />
       )}
 

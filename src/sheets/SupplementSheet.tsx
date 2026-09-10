@@ -1,7 +1,19 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
-import { useAddSupplements, useParseSupplementLabel, useReference } from '@/api/hooks'
-import type { AiSupplementLabelResult, Frequency, NutrientMeta } from '@/api/types'
+import {
+  useAddSupplements,
+  useParseSupplementLabel,
+  useReference,
+  useSaveSupplements,
+  useSupplements,
+} from '@/api/hooks'
+import type {
+  AiSupplementLabelResult,
+  Frequency,
+  NutrientMeta,
+  Supplement,
+} from '@/api/types'
+import { groupSupplements } from '@/lib/supplements'
 import { Icon } from '@/components/Icon'
 import { Sheet } from '@/components/Sheet'
 import { ErrorNote, Field, PhotoButton, Segment } from '@/components/primitives'
@@ -45,6 +57,8 @@ const CONFIDENCE_LABELS: Record<string, string> = {
 /** Строка формы. Доза хранится строкой: поле ввода можно очистить, а 0 — не «пусто». */
 interface Row {
   key: number
+  /** id сохранённого вещества; нет — строку ещё не заводили. */
+  id?: number
   name: string
   nutrientKey: string
   dose: string
@@ -59,10 +73,33 @@ function emptyRow(): Row {
   return { key: nextKey++, name: '', nutrientKey: '', dose: '', unit: 'мг', labelDose: null }
 }
 
-export function SupplementSheet({ onClose }: { onClose: () => void }) {
+/** Строка не изменилась — такую не трогаем, чтобы не слать два десятка пустых PATCH. */
+function sameAsSaved(row: Row, saved: { name: string; nutrient_key: string | null; dose: number; unit: string }): boolean {
+  return (
+    row.name.trim() === saved.name &&
+    (row.nutrientKey || null) === saved.nutrient_key &&
+    toNumber(row.dose) === saved.dose &&
+    row.unit === saved.unit
+  )
+}
+
+export function SupplementSheet({
+  groupKey = null,
+  onClose,
+}: {
+  /** Ключ банки из groupSupplements; null — заводим новую. */
+  groupKey?: string | null
+  onClose: () => void
+}) {
   const { data: reference } = useReference()
+  const { data: supplements = [] } = useSupplements()
   const addSupplements = useAddSupplements()
+  const saveSupplements = useSaveSupplements()
   const parseLabel = useParseSupplementLabel()
+
+  const editing = groupKey
+    ? groupSupplements(supplements).find((group) => group.key === groupKey)
+    : undefined
 
   // Название банки: одна добавка — одна запись в списке, сколько бы веществ
   // ни было в составе. Его же видно в ленте дня.
@@ -75,6 +112,27 @@ export function SupplementSheet({ onClose }: { onClose: () => void }) {
   const [whenLabel, setWhenLabel] = useState('утром')
   const [frequency, setFrequency] = useState<Frequency>('daily')
   const [formError, setFormError] = useState<string | null>(null)
+  // Заполняем форму один раз: перезапрос списка не должен затирать правки.
+  const filled = useRef(false)
+
+  useEffect(() => {
+    if (!editing || filled.current) return
+    filled.current = true
+    setName(editing.name)
+    setWhenLabel(editing.whenLabel ?? 'утром')
+    setFrequency(editing.frequency)
+    setRows(
+      editing.items.map((item) => ({
+        key: nextKey++,
+        id: item.id,
+        name: item.name,
+        nutrientKey: item.nutrient_key ?? '',
+        dose: String(item.dose),
+        unit: item.unit,
+        labelDose: null,
+      })),
+    )
+  }, [editing])
 
   const nutrients: NutrientMeta[] = reference?.nutrients ?? []
 
@@ -137,7 +195,7 @@ export function SupplementSheet({ onClose }: { onClose: () => void }) {
       setFormError('Укажите название добавки')
       return
     }
-    const payload = []
+    const payload: Omit<Supplement, 'id' | 'group_name'>[] = []
     for (const [index, row] of rows.entries()) {
       const dose = toNumber(row.dose)
       if (!row.name.trim()) {
@@ -159,14 +217,51 @@ export function SupplementSheet({ onClose }: { onClose: () => void }) {
       })
     }
     setFormError(null)
-    addSupplements.mutate({ name: name.trim(), items: payload }, { onSuccess: onClose })
+    if (!editing) {
+      addSupplements.mutate({ name: name.trim(), items: payload }, { onSuccess: onClose })
+      return
+    }
+
+    const drafts = rows.map((row, index) => ({
+      id: row.id,
+      name: payload[index]!.name,
+      nutrient_key: payload[index]!.nutrient_key,
+      dose: payload[index]!.dose,
+      unit: payload[index]!.unit,
+    }))
+    const keptIds = rows.map((row) => row.id).filter((id): id is number => id !== undefined)
+    // Название, время и частота общие для банки, поэтому их правка задевает все строки.
+    const sharedChanged =
+      name.trim() !== editing.name ||
+      whenLabel !== (editing.whenLabel ?? '') ||
+      frequency !== editing.frequency
+    const unchangedIds = sharedChanged
+      ? []
+      : rows
+          .filter((row) => {
+            const saved = editing.items.find((item) => item.id === row.id)
+            return saved && sameAsSaved(row, saved)
+          })
+          .map((row) => row.id!)
+
+    saveSupplements.mutate(
+      {
+        name: name.trim(),
+        items: drafts,
+        whenLabel,
+        frequency,
+        removedIds: editing.ids.filter((id) => !keptIds.includes(id)),
+        unchangedIds,
+      },
+      { onSuccess: onClose },
+    )
   }
 
   const counted = rows.filter((row) => row.nutrientKey).length
 
   return (
     <Sheet
-      title="Новая добавка"
+      title={editing ? 'Добавка' : 'Новая добавка'}
       onClose={onClose}
       footer={
         <>
@@ -177,10 +272,10 @@ export function SupplementSheet({ onClose }: { onClose: () => void }) {
             type="button"
             className="btn btn--accent"
             style={{ flex: 1 }}
-            disabled={addSupplements.isPending}
+            disabled={addSupplements.isPending || saveSupplements.isPending}
             onClick={onSave}
           >
-            {addSupplements.isPending ? 'Сохраняю…' : 'Сохранить'}
+            {addSupplements.isPending || saveSupplements.isPending ? 'Сохраняю…' : 'Сохранить'}
           </button>
         </>
       }
@@ -361,6 +456,7 @@ export function SupplementSheet({ onClose }: { onClose: () => void }) {
 
       {formError && <ErrorNote message={formError} />}
       {addSupplements.isError && <ErrorNote message={addSupplements.error.message} />}
+      {saveSupplements.isError && <ErrorNote message={saveSupplements.error.message} />}
     </Sheet>
   )
 }

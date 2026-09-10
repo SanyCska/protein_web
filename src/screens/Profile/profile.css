@@ -59,6 +59,19 @@
   min-width: 0;
 }
 
+.supplement-row__open {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  width: 100%;
+  text-align: left;
+}
+
+.supplement-row__open:hover .supplement-row__name {
+  color: var(--color-accent-300);
+}
+
 .supplement-row__name {
   font-size: 12px;
   font-weight: 500;

@@ -8,7 +8,7 @@ import {
 
 import { mondayOf } from '@/lib/format'
 import { api } from './client'
-import type { MealInput, PeriodRange, Product, Profile, Supplement } from './types'
+import type { Frequency, MealInput, PeriodRange, Product, Profile, Supplement } from './types'
 
 export const keys = {
   profile: ['profile'] as const,
@@ -175,6 +175,72 @@ export function useAddSupplements() {
 
 export function useDeleteSupplements() {
   return useDataMutation((ids: number[]) => api.deleteSupplements(ids))
+}
+
+/** Черновик вещества в форме: без id — ещё не сохранено. */
+export interface SupplementDraft {
+  id?: number
+  name: string
+  nutrient_key: string | null
+  dose: number
+  unit: string
+}
+
+/**
+ * Сохранение правок банки: изменённые вещества обновляются, новые заводятся,
+ * убранные удаляются. Одной мутацией — иначе список успел бы моргнуть промежуточным
+ * состоянием между тремя запросами.
+ */
+export function useSaveSupplements() {
+  return useDataMutation(
+    async (vars: {
+      name: string
+      items: SupplementDraft[]
+      whenLabel: string
+      frequency: Frequency
+      /** Что перестало быть частью банки. */
+      removedIds: number[]
+      /** Какие id менять не нужно — их поля не тронуты. */
+      unchangedIds: number[]
+    }) => {
+      const shared = {
+        group_name: vars.name,
+        when_label: vars.whenLabel,
+        frequency: vars.frequency,
+      }
+      const updated = vars.items.filter(
+        (item) => item.id !== undefined && !vars.unchangedIds.includes(item.id),
+      )
+      const created = vars.items.filter((item) => item.id === undefined)
+
+      await Promise.all(
+        updated.map((item) =>
+          api.updateSupplement(item.id!, {
+            ...shared,
+            name: item.name,
+            nutrient_key: item.nutrient_key,
+            dose: item.dose,
+            unit: item.unit,
+          }),
+        ),
+      )
+      if (created.length > 0) {
+        await api.addSupplements({
+          name: vars.name,
+          items: created.map((item) => ({
+            name: item.name,
+            nutrient_key: item.nutrient_key,
+            dose: item.dose,
+            unit: item.unit,
+            when_label: vars.whenLabel,
+            frequency: vars.frequency,
+            active: true,
+          })),
+        })
+      }
+      if (vars.removedIds.length > 0) await api.deleteSupplements(vars.removedIds)
+    },
+  )
 }
 
 export function useUpdateSupplement() {

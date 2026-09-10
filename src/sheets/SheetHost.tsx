@@ -9,6 +9,7 @@ import { WorkoutSheet } from './WorkoutSheet'
 export function SheetHost() {
   const sheet = useUi((state) => state.sheet)
   const mealId = useUi((state) => state.mealId)
+  const supplementKey = useUi((state) => state.supplementKey)
   const day = useUi((state) => state.day)
   const close = useUi((state) => state.closeSheet)
 
@@ -22,7 +23,7 @@ export function SheetHost() {
     case 'workout':
       return <WorkoutSheet day={day} onClose={close} />
     case 'supplement':
-      return <SupplementSheet onClose={close} />
+      return <SupplementSheet groupKey={supplementKey} onClose={close} />
     case 'params':
       return <ParamsSheet onClose={close} />
     default:
