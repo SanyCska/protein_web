@@ -151,6 +151,15 @@ export function useAddWorkout(day: string) {
   )
 }
 
+export function useUpdateWorkout() {
+  return useDataMutation(
+    (vars: {
+      id: number
+      payload: { kind?: string; minutes?: number; kcal?: number; done_at?: string | null }
+    }) => api.updateWorkout(vars.id, vars.payload),
+  )
+}
+
 export function useDeleteWorkout() {
   return useDataMutation((id: number) => api.deleteWorkout(id))
 }

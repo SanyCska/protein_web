@@ -410,7 +410,7 @@ export function ProfileScreen() {
                 <Icon name={template.icon} size={16} color="var(--color-accent)" />
                 <span className="template-tile__name">{template.name}</span>
                 <span className="template-tile__meta">
-                  {minutesLabel(template.minutes)} · −{num(template.kcal)}
+                  {minutesLabel(template.minutes)} · {num(template.kcal)} ккал
                 </span>
               </button>
               {/* Долгий тап в iOS-вебвью не даёт contextmenu — удаление только явной кнопкой. */}

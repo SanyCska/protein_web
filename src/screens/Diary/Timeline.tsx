@@ -78,11 +78,13 @@ export function Timeline({
   workouts,
   supplements,
   onOpenMeal,
+  onOpenWorkout,
 }: {
   meals: Meal[]
   workouts: Workout[]
   supplements: Supplement[]
   onOpenMeal: (id: number) => void
+  onOpenWorkout: (id: number) => void
 }) {
   const events = buildEvents(meals, workouts, supplements)
 
@@ -126,6 +128,7 @@ export function Timeline({
               icon={workout.icon}
               time={event.time}
               accent
+              onClick={() => onOpenWorkout(workout.id)}
             >
               <div className="event__head">
                 <span className="event__title">{workout.kind_name}</span>

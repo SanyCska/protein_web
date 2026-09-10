@@ -10,6 +10,7 @@ export function SheetHost() {
   const sheet = useUi((state) => state.sheet)
   const mealId = useUi((state) => state.mealId)
   const supplementKey = useUi((state) => state.supplementKey)
+  const workoutId = useUi((state) => state.workoutId)
   const day = useUi((state) => state.day)
   const close = useUi((state) => state.closeSheet)
 
@@ -21,7 +22,7 @@ export function SheetHost() {
     case 'meal':
       return mealId === null ? null : <MealDetailSheet mealId={mealId} onClose={close} />
     case 'workout':
-      return <WorkoutSheet day={day} onClose={close} />
+      return <WorkoutSheet day={day} workoutId={workoutId} onClose={close} />
     case 'supplement':
       return <SupplementSheet groupKey={supplementKey} onClose={close} />
     case 'params':

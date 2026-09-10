@@ -10,6 +10,7 @@ export type SheetKind = 'add' | 'meal' | 'workout' | 'supplement' | 'params'
 export interface SheetTarget {
   mealId?: number
   supplementKey?: string
+  workoutId?: number
 }
 
 interface UiState {
@@ -21,6 +22,8 @@ interface UiState {
   mealId: number | null
   /** Какая добавка открыта на правку; null — шит заводит новую. */
   supplementKey: string | null
+  /** Какая нагрузка открыта на правку; null — шит заводит новую. */
+  workoutId: number | null
   reportPeriod: 'day' | PeriodRange
   progressRange: PeriodRange
   /** Какой день считался сегодняшним при последней проверке. */
@@ -42,12 +45,13 @@ export const useUi = create<UiState>((set) => ({
   sheet: null,
   mealId: null,
   supplementKey: null,
+  workoutId: null,
   reportPeriod: 'day',
   progressRange: 'week',
   today: today(),
 
   // Переключение таба закрывает открытый шит — иначе он повиснет над чужим экраном.
-  setTab: (tab) => set({ tab, sheet: null, mealId: null, supplementKey: null }),
+  setTab: (tab) => set({ tab, sheet: null, mealId: null, supplementKey: null, workoutId: null }),
   syncToday: () =>
     set((state) => {
       const now = today()
@@ -62,8 +66,10 @@ export const useUi = create<UiState>((set) => ({
       sheet,
       mealId: target?.mealId ?? null,
       supplementKey: target?.supplementKey ?? null,
+      workoutId: target?.workoutId ?? null,
     }),
-  closeSheet: () => set({ sheet: null, mealId: null, supplementKey: null }),
+  closeSheet: () =>
+    set({ sheet: null, mealId: null, supplementKey: null, workoutId: null }),
   setReportPeriod: (reportPeriod) => set({ reportPeriod }),
   setProgressRange: (progressRange) => set({ progressRange }),
 }))
