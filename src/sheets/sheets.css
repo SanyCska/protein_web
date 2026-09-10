@@ -325,3 +325,10 @@
   gap: 8px;
   margin-top: 8px;
 }
+
+/* Единица приёма — подпись, а не поле: её задаёт этикетка, менять нечего. */
+.serving-unit {
+  display: flex;
+  align-items: center;
+  color: var(--color-neutral-500);
+}

@@ -312,6 +312,9 @@ export interface AiSupplementItem {
 /** Этикетка банки: у мультивитаминов это сразу десяток веществ. */
 export interface AiSupplementLabelResult {
   name: string
+  /** На сколько единиц приёма этикетка считает дозы — база для пересчёта под свой приём. */
+  serving: number
+  serving_unit: string
   items: AiSupplementItem[]
   when_label: string | null
   confidence: string

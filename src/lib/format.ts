@@ -88,6 +88,11 @@ export function num(value: number, digits = 0): string {
  * Без разделителей тысяч — колонка значений в отчёте узкая (70px), и «2 071 / 3 500 мг»
  * в неё не влезает, а перенос строки ломает выравнивание всей таблицы.
  */
+/** Доза добавки: 2,5 г остаётся дробной, а 2000 МЕ читается как «2 000». */
+export function doseValue(value: number): string {
+  return num(value, Number.isInteger(value) ? 0 : 1)
+}
+
 export function nutrientValue(value: number): string {
   if (value === 0) return '0'
   if (Math.abs(value) < 10) return num(value, 1).replace(/\s/g, '')

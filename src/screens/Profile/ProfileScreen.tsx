@@ -21,7 +21,7 @@ import {
   Tile,
 } from '@/components/primitives'
 import { haptic } from '@/api/telegram'
-import { minutesLabel, nowTime, num, today } from '@/lib/format'
+import { doseValue, minutesLabel, nowTime, num, today } from '@/lib/format'
 import type { Goal } from '@/api/types'
 import './profile.css'
 
@@ -188,7 +188,7 @@ export function ProfileScreen() {
                 </div>
               </div>
               <span className="supplement-row__dose">
-                {num(supplement.dose)} {supplement.unit}
+                {doseValue(supplement.dose)} {supplement.unit}
               </span>
               <button
                 type="button"

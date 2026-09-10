@@ -1,6 +1,6 @@
 import type { Meal, Supplement, Workout } from '@/api/types'
 import { Icon } from '@/components/Icon'
-import { minutesLabel, num } from '@/lib/format'
+import { doseValue, minutesLabel, num } from '@/lib/format'
 import { MEAL_TYPE_ICONS } from '@/lib/nutrition'
 import './diary.css'
 
@@ -148,7 +148,7 @@ export function Timeline({
               </span>
             </div>
             <p className="event__caption">
-              {num(supplement.dose)} {supplement.unit}
+              {doseValue(supplement.dose)} {supplement.unit}
               {supplement.when_label ? ` · ${supplement.when_label}` : ''}
             </p>
           </EventRow>

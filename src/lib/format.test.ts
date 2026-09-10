@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   addDays,
+  doseValue,
   entriesLabel,
   mondayOf,
   longDate,
@@ -96,5 +97,20 @@ describe('toNumber', () => {
 
   it('ноль остаётся нулём', () => {
     expect(toNumber('0')).toBe(0)
+  })
+})
+
+describe('doseValue', () => {
+  it('дробную дозу не округляет до целого', () => {
+    expect(doseValue(2.5)).toBe('2,5')
+  })
+
+  it('целую дозу показывает с разделителем разрядов', () => {
+    // Разделитель у ru-RU — неразрывный пробел, а не обычный.
+    expect(doseValue(2000)).toBe('2\u00a0000')
+  })
+
+  it('ноль остаётся нулём', () => {
+    expect(doseValue(0)).toBe('0')
   })
 })
