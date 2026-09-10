@@ -8,7 +8,15 @@ import {
 
 import { mondayOf } from '@/lib/format'
 import { api } from './client'
-import type { Frequency, MealInput, PeriodRange, Product, Profile, Supplement } from './types'
+import type {
+  Frequency,
+  MealInput,
+  PeriodRange,
+  Product,
+  Profile,
+  Supplement,
+  SupplementJarInput,
+} from './types'
 
 export const keys = {
   profile: ['profile'] as const,
@@ -167,10 +175,7 @@ export function useAddSupplement() {
 
 /** Банка целиком: у мультивитаминов это десяток веществ под одним названием. */
 export function useAddSupplements() {
-  return useDataMutation(
-    (payload: { name: string; items: Omit<Supplement, 'id' | 'group_name'>[] }) =>
-      api.addSupplements(payload),
-  )
+  return useDataMutation((payload: SupplementJarInput) => api.addSupplements(payload))
 }
 
 export function useDeleteSupplements() {
@@ -198,6 +203,8 @@ export function useSaveSupplements() {
       items: SupplementDraft[]
       whenLabel: string
       frequency: Frequency
+      labelServing: number
+      takenServing: number
       /** Что перестало быть частью банки. */
       removedIds: number[]
       /** Какие id менять не нужно — их поля не тронуты. */
@@ -207,6 +214,8 @@ export function useSaveSupplements() {
         group_name: vars.name,
         when_label: vars.whenLabel,
         frequency: vars.frequency,
+        label_serving: vars.labelServing,
+        taken_serving: vars.takenServing,
       }
       const updated = vars.items.filter(
         (item) => item.id !== undefined && !vars.unchangedIds.includes(item.id),
@@ -227,6 +236,8 @@ export function useSaveSupplements() {
       if (created.length > 0) {
         await api.addSupplements({
           name: vars.name,
+          label_serving: vars.labelServing,
+          taken_serving: vars.takenServing,
           items: created.map((item) => ({
             name: item.name,
             nutrient_key: item.nutrient_key,

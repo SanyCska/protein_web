@@ -22,7 +22,7 @@ import {
 } from '@/components/primitives'
 import { haptic } from '@/api/telegram'
 import { doseValue, minutesLabel, nowTime, num, today } from '@/lib/format'
-import { groupSupplements, substancesLabel } from '@/lib/supplements'
+import { groupSupplements, servingRatioLabel, substancesLabel } from '@/lib/supplements'
 import type { Goal } from '@/api/types'
 import './profile.css'
 
@@ -196,6 +196,8 @@ export function ProfileScreen() {
                       {group.whenLabel ?? 'в любое время'}
                       {group.frequency === 'every_other_day' && ' · через день'}
                       {group.frequency === 'course' && ' · курс'}
+                      {/* Доза на этикетке и приём различаются — в отчёт идёт доля. */}
+                      {servingRatioLabel(group) && ` · ${servingRatioLabel(group)}`}
                       {!group.active && ' · выключена'}
                     </span>
                   </button>
@@ -205,7 +207,7 @@ export function ProfileScreen() {
                         <li key={item.id}>
                           <span>{item.name}</span>
                           <span className="mn">
-                            {doseValue(item.dose)} {item.unit}
+                            {doseValue(item.effective_dose)} {item.unit}
                           </span>
                         </li>
                       ))}
@@ -214,7 +216,7 @@ export function ProfileScreen() {
                 </div>
                 <span className="supplement-row__dose">
                   {single
-                    ? `${doseValue(single.dose)} ${single.unit}`
+                    ? `${doseValue(single.effective_dose)} ${single.unit}`
                     : substancesLabel(group.items.length)}
                 </span>
                 <button

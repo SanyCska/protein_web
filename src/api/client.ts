@@ -15,6 +15,7 @@ import type {
   Progress,
   Reference,
   Supplement,
+  SupplementJarInput,
   WeekStrip,
   Workout,
   WorkoutTemplate,
@@ -151,7 +152,7 @@ export const api = {
 
   supplements: () => get<Supplement[]>('/supplements'),
   addSupplement: (payload: Omit<Supplement, 'id'>) => post<Supplement>('/supplements', payload),
-  addSupplements: (payload: { name: string; items: Omit<Supplement, 'id' | 'group_name'>[] }) =>
+  addSupplements: (payload: SupplementJarInput) =>
     post<Supplement[]>('/supplements/bulk', payload),
   deleteSupplements: (ids: number[]) => post<void>('/supplements/bulk-delete', { ids }),
   updateSupplement: (id: number, payload: Partial<Omit<Supplement, 'id'>>) =>

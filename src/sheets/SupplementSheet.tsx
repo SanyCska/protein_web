@@ -11,13 +11,13 @@ import type {
   AiSupplementLabelResult,
   Frequency,
   NutrientMeta,
-  Supplement,
+  SupplementItemInput,
 } from '@/api/types'
 import { groupSupplements } from '@/lib/supplements'
 import { Icon } from '@/components/Icon'
 import { Sheet } from '@/components/Sheet'
 import { ErrorNote, Field, PhotoButton, Segment } from '@/components/primitives'
-import { num, plural, roundTo, toNumber } from '@/lib/format'
+import { num, plural, toNumber } from '@/lib/format'
 import './sheets.css'
 
 const FREQUENCIES: { value: Frequency; label: string }[] = [
@@ -63,14 +63,12 @@ interface Row {
   nutrientKey: string
   dose: string
   unit: string
-  /** Доза с этикетки на её же порцию. Пока она есть, строка едет за выбранным приёмом. */
-  labelDose: number | null
 }
 
 let nextKey = 1
 
 function emptyRow(): Row {
-  return { key: nextKey++, name: '', nutrientKey: '', dose: '', unit: 'мг', labelDose: null }
+  return { key: nextKey++, name: '', nutrientKey: '', dose: '', unit: 'мг' }
 }
 
 /** Строка не изменилась — такую не трогаем, чтобы не слать два десятка пустых PATCH. */
@@ -105,10 +103,12 @@ export function SupplementSheet({
   // ни было в составе. Его же видно в ленте дня.
   const [name, setName] = useState('')
   const [rows, setRows] = useState<Row[]>([emptyRow()])
-  // Сколько единиц приёма принимает пользователь и на сколько их считает этикетка:
-  // таблица на банке часто дана на две капсулы, а пьют одну.
-  const [serving, setServing] = useState('')
-  const [label, setLabel] = useState<{ serving: number; unit: string } | null>(null)
+  // На сколько единиц приёма посчитана этикетка и сколько их принимают. Дозы ниже
+  // хранятся как напечатаны, а в отчёт идёт их доля: таблица бывает на три таблетки,
+  // а пьют одну.
+  const [labelServing, setLabelServing] = useState('1')
+  const [takenServing, setTakenServing] = useState('1')
+  const [servingUnit, setServingUnit] = useState('порция')
   const [whenLabel, setWhenLabel] = useState('утром')
   const [frequency, setFrequency] = useState<Frequency>('daily')
   const [formError, setFormError] = useState<string | null>(null)
@@ -121,6 +121,8 @@ export function SupplementSheet({
     setName(editing.name)
     setWhenLabel(editing.whenLabel ?? 'утром')
     setFrequency(editing.frequency)
+    setLabelServing(String(editing.labelServing))
+    setTakenServing(String(editing.takenServing))
     setRows(
       editing.items.map((item) => ({
         key: nextKey++,
@@ -129,7 +131,6 @@ export function SupplementSheet({
         nutrientKey: item.nutrient_key ?? '',
         dose: String(item.dose),
         unit: item.unit,
-        labelDose: null,
       })),
     )
   }, [editing])
@@ -163,31 +164,17 @@ export function SupplementSheet({
         nutrientKey: item.nutrient_key ?? '',
         dose: String(item.dose),
         unit: item.unit,
-        labelDose: item.dose,
       })),
     )
-    setLabel({ serving: result.serving, unit: result.serving_unit })
-    setServing(String(result.serving))
+    // По умолчанию считаем, что принимают ровно то, на что посчитана этикетка;
+    // пьющий одну таблетку из трёх поправит второе поле.
+    setLabelServing(String(result.serving))
+    setTakenServing(String(result.serving))
+    setServingUnit(result.serving_unit)
     if (!name.trim()) setName(result.name)
     if (result.when_label && WHEN_OPTIONS.includes(result.when_label)) {
       setWhenLabel(result.when_label)
     }
-  }
-
-  /**
-   * Пользователь пьёт не то, на что посчитана таблица: одну капсулу вместо двух.
-   * Дозы едут пропорционально, но только там, где их не правили руками.
-   */
-  const onServingChange = (value: string) => {
-    setServing(value)
-    const taken = toNumber(value)
-    if (!label || label.serving <= 0 || taken === null) return
-    const factor = taken / label.serving
-    setRows((current) =>
-      current.map((row) =>
-        row.labelDose === null ? row : { ...row, dose: String(roundTo(row.labelDose * factor, 3)) },
-      ),
-    )
   }
 
   const onSave = () => {
@@ -195,7 +182,7 @@ export function SupplementSheet({
       setFormError('Укажите название добавки')
       return
     }
-    const payload: Omit<Supplement, 'id' | 'group_name'>[] = []
+    const payload: SupplementItemInput[] = []
     for (const [index, row] of rows.entries()) {
       const dose = toNumber(row.dose)
       if (!row.name.trim()) {
@@ -217,8 +204,17 @@ export function SupplementSheet({
       })
     }
     setFormError(null)
+    const servings = { labelServing: labelUnits ?? 1, takenServing: takenUnits ?? 1 }
     if (!editing) {
-      addSupplements.mutate({ name: name.trim(), items: payload }, { onSuccess: onClose })
+      addSupplements.mutate(
+        {
+          name: name.trim(),
+          label_serving: servings.labelServing,
+          taken_serving: servings.takenServing,
+          items: payload,
+        },
+        { onSuccess: onClose },
+      )
       return
     }
 
@@ -234,7 +230,9 @@ export function SupplementSheet({
     const sharedChanged =
       name.trim() !== editing.name ||
       whenLabel !== (editing.whenLabel ?? '') ||
-      frequency !== editing.frequency
+      frequency !== editing.frequency ||
+      servings.labelServing !== editing.labelServing ||
+      servings.takenServing !== editing.takenServing
     const unchangedIds = sharedChanged
       ? []
       : rows
@@ -250,6 +248,7 @@ export function SupplementSheet({
         items: drafts,
         whenLabel,
         frequency,
+        ...servings,
         removedIds: editing.ids.filter((id) => !keptIds.includes(id)),
         unchangedIds,
       },
@@ -258,6 +257,15 @@ export function SupplementSheet({
   }
 
   const counted = rows.filter((row) => row.nutrientKey).length
+
+  const labelUnits = toNumber(labelServing)
+  const takenUnits = toNumber(takenServing)
+  const ratio = labelUnits && takenUnits ? takenUnits / labelUnits : 1
+  // Формулировки без падежей: «принимаете 1 порция» читалось бы как ошибка.
+  const servingNote =
+    ratio === 1
+      ? `Дозы ниже — ровно как напечатаны на этикетке. Если таблица дана на 3 таблетки, а пьёте вы одну, поставьте 3 и 1 — в отчёт пойдёт только треть.`
+      : `Этикетка считает дозы на ${servingLabel(labelUnits ?? 1, servingUnit)}, принимаете ${num(takenUnits ?? 1, 2)} — в отчёт пойдёт ${Math.round(ratio * 100)}% от указанных доз.`
 
   return (
     <Sheet
@@ -316,32 +324,37 @@ export function SupplementSheet({
         веществ ни было в составе. В отчёт по микронутриентам попадёт каждое вещество.
       </p>
 
-      {label && (
-        <>
-          <div className="portion-field">
-            <label className="field">
-              <span className="field__label">Принимаю за раз</span>
-              <input
-                className="field__input field__input--mono"
-                inputMode="decimal"
-                value={serving}
-                aria-label="Сколько единиц приёма принимаю"
-                onChange={(event) => onServingChange(event.target.value)}
-              />
-            </label>
-            <div className="field">
-              <span className="field__label">Единица</span>
-              <div className="field__input serving-unit">
-                {unitWord(toNumber(serving) ?? label.serving, label.unit)}
-              </div>
-            </div>
+      <div className="serving-grid">
+        <label className="field">
+          <span className="field__label">Доза на этикетке</span>
+          <input
+            className="field__input field__input--mono"
+            inputMode="decimal"
+            value={labelServing}
+            aria-label="На сколько единиц приёма посчитана этикетка"
+            onChange={(event) => setLabelServing(event.target.value)}
+          />
+        </label>
+        <label className="field">
+          <span className="field__label">Принимаю</span>
+          <input
+            className="field__input field__input--mono field__input--accent"
+            inputMode="decimal"
+            value={takenServing}
+            aria-label="Сколько единиц приёма принимаю"
+            onChange={(event) => setTakenServing(event.target.value)}
+          />
+        </label>
+        <div className="field">
+          <span className="field__label">Единица</span>
+          <div className="field__input serving-unit">
+            {unitWord(toNumber(takenServing) ?? 1, servingUnit)}
           </div>
-          <p className="footnote">
-            На этикетке дозы указаны на {servingLabel(label.serving, label.unit)}. Поменяйте
-            число — дозы пересчитаются; поправленные руками останутся как есть.
-          </p>
-        </>
-      )}
+        </div>
+      </div>
+      <p className="footnote">
+        {servingNote}
+      </p>
 
       <h3 className="section-label" style={{ marginTop: 14 }}>
         Состав{rows.length > 1 ? ` · ${rows.length}` : ''}
@@ -391,7 +404,7 @@ export function SupplementSheet({
               mono
               accent
               inputMode="decimal"
-              onChange={(dose) => patchRow(row.key, { dose, labelDose: null })}
+              onChange={(dose) => patchRow(row.key, { dose })}
             />
             <label className="field">
               <span className="field__label">Ед.</span>

@@ -1,5 +1,5 @@
 import type { Frequency, Supplement } from '@/api/types'
-import { plural } from './format'
+import { num, plural } from './format'
 
 /** Банка: вещества, сохранённые под одним названием. */
 export interface SupplementGroup {
@@ -10,6 +10,9 @@ export interface SupplementGroup {
   whenLabel: string | null
   frequency: Frequency
   active: boolean
+  /** Доли приёма общие для банки: берём их у первого вещества. */
+  labelServing: number
+  takenServing: number
 }
 
 /**
@@ -37,10 +40,18 @@ export function groupSupplements(supplements: Supplement[]): SupplementGroup[] {
         whenLabel: item.when_label,
         frequency: item.frequency,
         active: item.active,
+        labelServing: item.label_serving,
+        takenServing: item.taken_serving,
       })
     }
   }
   return [...groups.values()]
+}
+
+/** «1 из 3» — если принимают не всю порцию с этикетки. Иначе ничего показывать не надо. */
+export function servingRatioLabel(group: SupplementGroup): string | null {
+  if (group.takenServing === group.labelServing) return null
+  return `${num(group.takenServing, 2)} из ${num(group.labelServing, 2)}`
 }
 
 export function substancesLabel(count: number): string {

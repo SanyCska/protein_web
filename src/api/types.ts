@@ -96,11 +96,32 @@ export interface Supplement {
   /** Название банки: по нему вещества собираются в одну добавку. null — сама себе банка. */
   group_name: string | null
   nutrient_key: string | null
+  /** Доза как напечатана на этикетке — на `label_serving` единиц приёма. */
   dose: number
   unit: string
+  /** На сколько таблеток этикетка считает дозу. */
+  label_serving: number
+  /** Сколько их принимает пользователь: 1 из 3 — значит треть дозы. */
+  taken_serving: number
   when_label: string | null
   frequency: Frequency
   active: boolean
+  /** Сколько реально принимается: это число идёт в отчёт и в списки. */
+  effective_dose: number
+}
+
+/** Вещество в запросе на сохранение: название банки и доли приёма задаются на её уровне. */
+export type SupplementItemInput = Pick<
+  Supplement,
+  'name' | 'nutrient_key' | 'dose' | 'unit' | 'when_label' | 'frequency' | 'active'
+>
+
+/** Банка целиком: общее название, доли приёма и состав. */
+export interface SupplementJarInput {
+  name: string
+  label_serving: number
+  taken_serving: number
+  items: SupplementItemInput[]
 }
 
 export interface Profile {

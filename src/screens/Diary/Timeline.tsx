@@ -153,7 +153,7 @@ export function Timeline({
             </div>
             <p className="event__caption">
               {single
-                ? `${doseValue(single.dose)} ${single.unit}`
+                ? `${doseValue(single.effective_dose)} ${single.unit}`
                 : substancesLabel(group.items.length)}
               {group.whenLabel ? ` · ${group.whenLabel}` : ''}
             </p>
