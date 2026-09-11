@@ -8,6 +8,7 @@ import { Icon } from '@/components/Icon'
 import { MicrosEditor } from '@/components/MicrosEditor'
 import { Sheet } from '@/components/Sheet'
 import {
+  Chip,
   ErrorNote,
   Field,
   NutrientRow,
@@ -15,13 +16,22 @@ import {
   Stepper,
   Tile,
 } from '@/components/primitives'
-import { num, shortDate, toNumber } from '@/lib/format'
+import { num, roundTo, shortDate, toNumber } from '@/lib/format'
 import { formFromMeal, mealPatch, type MealForm } from '@/lib/meal-edit'
 import { MEAL_TYPE_LABELS, totalsFromItems } from '@/lib/nutrition'
 import { MealProductSave } from './MealProductSave'
 import './sheets.css'
 
 const MEAL_TYPES = Object.entries(MEAL_TYPE_LABELS) as [MealType, string][]
+
+/** Ходовые доли: съел половину записанного, полторы порции, две. */
+const FACTORS = [0.5, 1.5, 2]
+
+/** Умножить число в поле формы; пустое поле так и остаётся пустым. */
+function scaleField(value: string, factor: number): string {
+  const parsed = toNumber(value)
+  return parsed === null ? value : String(roundTo(parsed * factor, 1))
+}
 
 /** Микронутриенты блюда, отсортированные по вкладу в дневную норму. */
 function contributionRows(
@@ -72,6 +82,41 @@ export function MealDetailSheet({ mealId, onClose }: { mealId: number; onClose: 
   if (!meal || !form) return null
 
   const patch = (fields: Partial<MealForm>) => setForm((current) => current && { ...current, ...fields })
+
+  /**
+   * Пересчитать запись целиком: «съел половину того, что записал». У блюда с составом
+   * множим граммовку ингредиентов, у остальных — КБЖУ, порцию и микронутриенты.
+   */
+  const applyFactor = (factor: number) => {
+    if (form.items) {
+      patch({
+        items: form.items.map((item) => ({ ...item, grams: roundTo(item.grams * factor, 1) })),
+      })
+      return
+    }
+    patch({
+      kcal: scaleField(form.kcal, factor),
+      protein: scaleField(form.protein, factor),
+      fat: scaleField(form.fat, factor),
+      carbs: scaleField(form.carbs, factor),
+      fiber: scaleField(form.fiber, factor),
+      portion: scaleField(form.portion, factor),
+      micros: Object.fromEntries(
+        Object.entries(form.micros).map(([key, value]) => [key, roundTo(value * factor, 3)]),
+      ),
+    })
+  }
+
+  const factorRow = (
+    <div className="factor-row">
+      <span className="factor-row__label">Пересчитать</span>
+      {FACTORS.map((factor) => (
+        <Chip key={factor} onClick={() => applyFactor(factor)}>
+          ×{num(factor, factor === 2 ? 0 : 1)}
+        </Chip>
+      ))}
+    </div>
+  )
 
   const items = form.items
   // Пока пользователь двигает степперы, цифры пересчитываются локально —
@@ -207,9 +252,10 @@ export function MealDetailSheet({ mealId, onClose }: { mealId: number; onClose: 
               )}
             </div>
           ))}
+          {factorRow}
           <p className="footnote">
             КБЖУ и витамины пересчитываются из состава, поэтому править их отдельно нельзя —
-            меняйте граммовку.
+            меняйте граммовку или пересчитайте всё блюдо долей.
           </p>
         </section>
       ) : (
@@ -220,6 +266,11 @@ export function MealDetailSheet({ mealId, onClose }: { mealId: number; onClose: 
             onChange={(portion) => patch({ portion })}
             onUnitChange={(portionUnit) => patch({ portionUnit })}
           />
+          {factorRow}
+          <p className="footnote">
+            Доля пересчитывает всю запись: порцию, КБЖУ и витамины. Съели половину
+            записанного — нажмите ×0,5.
+          </p>
           <div className="manual-grid">
             <Field
               label="Ккал"

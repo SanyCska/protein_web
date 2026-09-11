@@ -368,3 +368,16 @@
   justify-content: space-between;
   gap: 10px;
 }
+
+/* Доли записи: «съел половину того, что записал». */
+.factor-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.factor-row__label {
+  font-size: 11px;
+  color: var(--color-neutral-600);
+}
