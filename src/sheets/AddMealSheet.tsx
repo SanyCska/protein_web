@@ -13,6 +13,7 @@ import { Icon } from '@/components/Icon'
 import { MicrosEditor } from '@/components/MicrosEditor'
 import { Sheet } from '@/components/Sheet'
 import {
+  Chip,
   ErrorNote,
   Field,
   PhotoButton,
@@ -36,6 +37,9 @@ const MODES = [
   { value: 'search' as const, label: 'Поиск' },
   { value: 'manual' as const, label: 'Вручную' },
 ]
+
+/** Ходовые доли порции: полбанки, полторы, две. */
+const PORTION_PRESETS = [0.5, 1, 1.5, 2]
 
 const CONFIDENCE_LABELS: Record<string, string> = {
   low: 'точность низкая',
@@ -80,6 +84,8 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
   // Выбранный в поиске продукт ждёт, пока укажут съеденное количество.
   const [picked, setPicked] = useState<Product | null>(null)
   const [pickedAmount, setPickedAmount] = useState('')
+  // Половину банки удобнее задать долей порции, а недоеденную тарелку — граммами.
+  const [pickedMode, setPickedMode] = useState<'amount' | 'portions'>('amount')
   const [portionUnit, setPortionUnit] = useState<PortionUnit>('г')
   // Состав на 100 г со снятой этикетки: пока он есть, правка граммовки пересчитывает
   // КБЖУ сама. Ручная правка любого макроса его сбрасывает — дальше цифры пользователя.
@@ -108,6 +114,22 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
   } = useProducts(debouncedQuery, mode === 'search')
 
   const removedCount = Math.max((parsedItems?.length ?? 0) - (items?.length ?? 0), 0)
+
+  // Во сколько раз съеденное отличается от сохранённой порции продукта.
+  const pickedBasis = picked?.portion_g ?? 0
+  const pickedValue = toNumber(pickedAmount)
+  const pickedFactor =
+    pickedMode === 'portions'
+      ? (pickedValue && pickedValue > 0 ? pickedValue : 1)
+      : portionFactor(pickedBasis, pickedValue)
+  const pickedGrams = roundTo(pickedBasis * pickedFactor, 1)
+
+  /** Смена меры не должна менять количество: пересчитываем поле под новую. */
+  const switchPickedMode = (mode: 'amount' | 'portions') => {
+    setPickedMode(mode)
+    if (mode === 'portions') setPickedAmount(String(roundTo(pickedFactor, 2)))
+    else setPickedAmount(String(pickedGrams))
+  }
 
   const time = nowTime()
 
@@ -209,9 +231,8 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
    * Продукт из справочника с пересчётом на съеденное. КБЖУ продукта относятся к его
    * сохранённой порции; если она неизвестна, пересчитывать не от чего — добавляем как есть.
    */
-  const addProduct = (product: Product, amount: number | null) => {
+  const addProduct = (product: Product, factor: number) => {
     const basis = product.portion_g ?? 0
-    const factor = portionFactor(basis, amount)
     const scale = (value: number | null) =>
       value === null ? null : roundTo(value * factor, 1)
     addMeal.mutate(
@@ -222,7 +243,7 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
         fat_g: scale(product.fat_g),
         carbs_g: scale(product.carbs_g),
         fiber_g: scale(product.fiber_g),
-        portion_g: basis > 0 ? (amount ?? basis) : product.portion_g,
+        portion_g: basis > 0 ? roundTo(basis * factor, 1) : product.portion_g,
         portion_unit: product.portion_unit,
         micros: Object.fromEntries(
           Object.entries(product.micros).map(([key, value]) => [key, roundTo(value * factor, 3)]),
@@ -501,9 +522,26 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
                 Данные сохранены на {num(picked.portion_g ?? 0)} {picked.portion_unit} ·{' '}
                 {num(picked.calories_kcal ?? 0)} ккал.
               </p>
+              <div className="sheet-segment">
+                <Segment
+                  quiet
+                  label="Чем меряем съеденное"
+                  options={[
+                    { value: 'amount' as const, label: picked.portion_unit },
+                    { value: 'portions' as const, label: 'порции' },
+                  ]}
+                  value={pickedMode}
+                  onChange={switchPickedMode}
+                />
+              </div>
+
               <div className="portion-field">
                 <Field
-                  label={`Съел сейчас, ${picked.portion_unit}`}
+                  label={
+                    pickedMode === 'portions'
+                      ? 'Съел порций'
+                      : `Съел сейчас, ${picked.portion_unit}`
+                  }
                   value={pickedAmount}
                   mono
                   accent
@@ -513,21 +551,36 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
                 <div className="field">
                   <span className="field__label">Засчитаем</span>
                   <div className="field__input serving-unit mn">
-                    {num(
-                      (picked.calories_kcal ?? 0) *
-                        ((toNumber(pickedAmount) ?? picked.portion_g ?? 0) /
-                          (picked.portion_g || 1)),
-                    )}{' '}
-                    ккал
+                    {num((picked.calories_kcal ?? 0) * pickedFactor)} ккал
                   </div>
                 </div>
               </div>
+
+              {pickedMode === 'portions' && (
+                <div className="preset-row">
+                  {PORTION_PRESETS.map((preset) => (
+                    <Chip
+                      key={preset}
+                      selected={pickedValue === preset}
+                      onClick={() => setPickedAmount(String(preset))}
+                    >
+                      {num(preset, 1)}
+                    </Chip>
+                  ))}
+                </div>
+              )}
+
+              <p className="footnote">
+                {pickedMode === 'portions'
+                  ? `Это ${num(pickedGrams)} ${picked.portion_unit}.`
+                  : `Это ${num(pickedFactor, 2)} от сохранённой порции.`}
+              </p>
+
               <button
                 type="button"
                 className="btn btn--sm btn--accent btn--block"
-                style={{ marginTop: 10 }}
                 disabled={addMeal.isPending}
-                onClick={() => addProduct(picked, toNumber(pickedAmount))}
+                onClick={() => addProduct(picked, pickedFactor)}
               >
                 {addMeal.isPending ? 'Добавляю…' : 'Добавить в день'}
               </button>
@@ -552,9 +605,10 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
                   // Порция продукта известна — спрашиваем, сколько съели; иначе добавляем как есть.
                   if (product.portion_g) {
                     setPicked(product)
+                    setPickedMode('amount')
                     setPickedAmount(String(product.portion_g))
                   } else {
-                    addProduct(product, null)
+                    addProduct(product, 1)
                   }
                 }}
               >
