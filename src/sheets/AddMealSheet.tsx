@@ -519,21 +519,27 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
                 </button>
               </div>
               <p className="footnote">
-                Данные сохранены на {num(picked.portion_g ?? 0)} {picked.portion_unit} ·{' '}
-                {num(picked.calories_kcal ?? 0)} ккал.
+                {pickedBasis > 0
+                  ? `Данные сохранены на ${num(pickedBasis)} ${picked.portion_unit} · ${num(
+                      picked.calories_kcal ?? 0,
+                    )} ккал.`
+                  : `Сохранено ${num(picked.calories_kcal ?? 0)} ккал на порцию; её вес не указан.`}
               </p>
-              <div className="sheet-segment">
-                <Segment
-                  quiet
-                  label="Чем меряем съеденное"
-                  options={[
-                    { value: 'amount' as const, label: picked.portion_unit },
-                    { value: 'portions' as const, label: 'порции' },
-                  ]}
-                  value={pickedMode}
-                  onChange={switchPickedMode}
-                />
-              </div>
+              {/* Без веса порции граммы считать не от чего — остаются только доли. */}
+              {pickedBasis > 0 && (
+                <div className="sheet-segment">
+                  <Segment
+                    quiet
+                    label="Чем меряем съеденное"
+                    options={[
+                      { value: 'amount' as const, label: picked.portion_unit },
+                      { value: 'portions' as const, label: 'порции' },
+                    ]}
+                    value={pickedMode}
+                    onChange={switchPickedMode}
+                  />
+                </div>
+              )}
 
               <div className="portion-field">
                 <Field
@@ -571,9 +577,11 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
               )}
 
               <p className="footnote">
-                {pickedMode === 'portions'
-                  ? `Это ${num(pickedGrams)} ${picked.portion_unit}.`
-                  : `Это ${num(pickedFactor, 2)} от сохранённой порции.`}
+                {pickedMode !== 'portions'
+                  ? `Это ${num(pickedFactor, 2)} от сохранённой порции.`
+                  : pickedBasis > 0
+                    ? `Это ${num(pickedGrams)} ${picked.portion_unit}.`
+                    : 'Доля считается от сохранённых КБЖУ: 0,5 — половина того, что записано.'}
               </p>
 
               <button
@@ -602,13 +610,15 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
                 type="button"
                 className="result-card"
                 onClick={() => {
-                  // Порция продукта известна — спрашиваем, сколько съели; иначе добавляем как есть.
+                  // Спрашиваем всегда: без веса порции граммы считать не от чего, но доля
+                  // сохранённых значений работает и там — «съел полпорции».
+                  setPicked(product)
                   if (product.portion_g) {
-                    setPicked(product)
                     setPickedMode('amount')
                     setPickedAmount(String(product.portion_g))
                   } else {
-                    addProduct(product, 1)
+                    setPickedMode('portions')
+                    setPickedAmount('1')
                   }
                 }}
               >
