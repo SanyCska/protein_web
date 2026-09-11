@@ -223,6 +223,14 @@ export function MealDetailSheet({ mealId, onClose }: { mealId: number; onClose: 
       <Field label="Название" value={form.name} onChange={(name) => patch({ name })} />
 
       <div className="manual-grid">
+        {/* Дату правим здесь же: запись нередко вносят на следующий день. */}
+        <Field
+          label="Дата"
+          type="date"
+          value={form.day}
+          mono
+          onChange={(day) => patch({ day })}
+        />
         <Field
           label="Время"
           type="time"

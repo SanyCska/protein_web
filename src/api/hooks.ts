@@ -31,6 +31,7 @@ export const keys = {
   templates: ['templates'] as const,
   supplements: ['supplements'] as const,
   products: (query: string) => ['products', query] as const,
+  recentMeals: ['recentMeals'] as const,
 }
 
 export function useProfile() {
@@ -79,6 +80,11 @@ export function useTemplates() {
 
 export function useSupplements() {
   return useQuery({ queryKey: keys.supplements, queryFn: api.supplements })
+}
+
+/** Что ел на днях — список для повтора записи. */
+export function useRecentMeals(enabled = true) {
+  return useQuery({ queryKey: keys.recentMeals, queryFn: api.recentMeals, enabled })
 }
 
 export function useProducts(query: string, enabled = true) {

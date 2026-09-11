@@ -7,8 +7,17 @@ import {
   useParseLabel,
   useParseMeal,
   useProducts,
+  useRecentMeals,
 } from '@/api/hooks'
-import type { AiLabelResult, MealItem, Micros, Per100, PortionUnit, Product } from '@/api/types'
+import type {
+  AiLabelResult,
+  Meal,
+  MealItem,
+  Micros,
+  Per100,
+  PortionUnit,
+  Product,
+} from '@/api/types'
 import { Icon } from '@/components/Icon'
 import { MicrosEditor } from '@/components/MicrosEditor'
 import { Sheet } from '@/components/Sheet'
@@ -21,7 +30,7 @@ import {
   Segment,
   Stepper,
 } from '@/components/primitives'
-import { num, nowTime, roundTo, toNumber } from '@/lib/format'
+import { addDays, num, nowTime, roundTo, shortDate, today, toNumber } from '@/lib/format'
 import {
   guessMealType,
   portionFactor,
@@ -30,13 +39,21 @@ import {
 } from '@/lib/nutrition'
 import './sheets.css'
 
-type Mode = 'ai' | 'search' | 'manual'
+type Mode = 'ai' | 'search' | 'recent' | 'manual'
 
 const MODES = [
-  { value: 'ai' as const, label: 'ИИ-разбор' },
-  { value: 'search' as const, label: 'Поиск' },
+  { value: 'ai' as const, label: 'ИИ' },
+  { value: 'search' as const, label: 'Продукты' },
+  { value: 'recent' as const, label: 'Недавние' },
   { value: 'manual' as const, label: 'Вручную' },
 ]
+
+/** «Сегодня» и «вчера» читаются быстрее даты, а дальше уже нужна дата. */
+function dayLabel(day: string): string {
+  if (day === today()) return 'сегодня'
+  if (day === addDays(today(), -1)) return 'вчера'
+  return shortDate(day)
+}
 
 /** Ходовые доли порции: полбанки, полторы, две. */
 const PORTION_PRESETS = [0.5, 1, 1.5, 2]
@@ -95,6 +112,8 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
   // и в запись дня, и в сохранённый продукт — это один и тот же продукт.
   const [manualMicros, setManualMicros] = useState<Micros>({})
   const [formError, setFormError] = useState<string | null>(null)
+
+  const { data: recent = [], isFetching: recentLoading } = useRecentMeals(mode === 'recent')
 
   const parseMeal = useParseMeal()
   const parseLabel = useParseLabel()
@@ -256,6 +275,32 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
     )
   }
 
+  /**
+   * Повторить запись прошлого дня в текущем. В справочник продуктов ничего не кладём:
+   * повтор — это про сегодняшнюю тарелку, а не про пополнение списка продуктов.
+   */
+  const copyMeal = (meal: Meal) => {
+    addMeal.mutate(
+      {
+        name: meal.name,
+        calories_kcal: meal.calories_kcal,
+        protein_g: meal.protein_g,
+        fat_g: meal.fat_g,
+        carbs_g: meal.carbs_g,
+        fiber_g: meal.fiber_g,
+        portion_g: meal.portion_g,
+        portion_unit: meal.portion_unit,
+        micros: meal.micros,
+        items: meal.items,
+        ingredients: meal.ingredients,
+        meal_type: guessMealType(time),
+        eaten_at: time,
+        source: 'webapp_copy',
+      },
+      { onSuccess: onClose },
+    )
+  }
+
   const runParse = (imageBase64?: string) => {
     parseMeal.mutate(
       { text: aiText, image_base64: imageBase64 },
@@ -356,7 +401,7 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
       title="Добавить блюдо"
       onClose={onClose}
       footer={
-        mode === 'search' ? undefined : (
+        mode === 'search' || mode === 'recent' ? undefined : (
           <>
             <button type="button" className="btn btn--neutral" style={{ width: 96 }} onClick={onClose}>
               Отмена
@@ -637,6 +682,43 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
             ))}
           </div>
         </>
+      )}
+
+      {mode === 'recent' && (
+        <div className="sheet-section">
+          {recentLoading && <p className="footnote">Смотрим, что было на днях…</p>}
+          {!recentLoading && recent.length === 0 && (
+            <p className="footnote">
+              Пока нечего повторять — записи появятся здесь, как только вы что-нибудь
+              добавите в дневник.
+            </p>
+          )}
+          {recent.map((meal) => (
+            <button
+              key={meal.id}
+              type="button"
+              className="result-card"
+              disabled={addMeal.isPending}
+              onClick={() => copyMeal(meal)}
+            >
+              <div className="result-card__body">
+                <div className="result-card__name">{meal.name}</div>
+                <div className="result-card__detail">
+                  {dayLabel(meal.day)}
+                  {meal.eaten_at ? ` ${meal.eaten_at}` : ''} · Б{num(meal.protein_g)} Ж
+                  {num(meal.fat_g)} У{num(meal.carbs_g)}
+                  {meal.portion_g ? ` · ${num(meal.portion_g)} ${meal.portion_unit}` : ''}
+                </div>
+              </div>
+              <span className="result-card__kcal">{num(meal.calories_kcal)}</span>
+              <Icon name="plus" size={14} color="var(--color-accent)" />
+            </button>
+          ))}
+          <p className="footnote">
+            Тап повторяет запись в выбранном дне со временем «сейчас». В список продуктов
+            она не попадёт.
+          </p>
+        </div>
       )}
 
       {mode === 'manual' && (

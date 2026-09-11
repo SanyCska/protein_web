@@ -121,6 +121,7 @@ export const api = {
 
   addMeal: (day: string, payload: MealInput) => post<Meal>(`/diary/${day}/meals`, payload),
   meal: (id: number) => get<Meal>(`/meals/${id}`),
+  recentMeals: () => get<Meal[]>('/meals/recent'),
   updateMeal: (id: number, payload: Partial<MealInput> & { day?: string }) =>
     patch<Meal>(`/meals/${id}`, payload),
   deleteMeal: (id: number) => del(`/meals/${id}`),

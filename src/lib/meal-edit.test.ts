@@ -102,6 +102,18 @@ describe('mealPatch', () => {
     expect(mealPatch(withItems, { ...form, name: 'Омлет' })).toEqual({ name: 'Омлет' })
   })
 
+  it('видит перенос на другую дату', () => {
+    const base = meal()
+    expect(mealPatch(base, { ...formFromMeal(base), day: '2026-09-11' })).toEqual({
+      day: '2026-09-11',
+    })
+  })
+
+  it('пустая дата не переносит запись', () => {
+    const base = meal()
+    expect(mealPatch(base, { ...formFromMeal(base), day: '' })).toEqual({})
+  })
+
   it('пустое название не стирает сохранённое', () => {
     const base = meal()
     expect(mealPatch(base, { ...formFromMeal(base), name: '  ' })).toEqual({})

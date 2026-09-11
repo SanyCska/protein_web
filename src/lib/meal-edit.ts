@@ -4,6 +4,8 @@ import { toNumber } from './format'
 /** Состояние формы правки блюда: числа держим строками, поле можно очистить. */
 export interface MealForm {
   name: string
+  /** День записи, YYYY-MM-DD: блюдо можно перенести на другую дату. */
+  day: string
   mealType: MealType
   eatenAt: string
   /** Состав; null — у записи его нет и правятся КБЖУ напрямую. */
@@ -21,6 +23,7 @@ export interface MealForm {
 export function formFromMeal(meal: Meal): MealForm {
   return {
     name: meal.name,
+    day: meal.day,
     mealType: meal.meal_type,
     eatenAt: meal.eaten_at ?? '',
     items: meal.items.length > 0 ? meal.items : null,
@@ -48,11 +51,12 @@ function sameItems(left: MealItem[], right: MealItem[]): boolean {
  * Шлём только изменённые поля: PATCH с составом заставляет сервер пересчитать итоги
  * из него, и лишний `items` в запросе затёр бы правку КБЖУ, сделанную руками.
  */
-export function mealPatch(meal: Meal, form: MealForm): Partial<MealInput> {
-  const patch: Partial<MealInput> = {}
+export function mealPatch(meal: Meal, form: MealForm): Partial<MealInput> & { day?: string } {
+  const patch: Partial<MealInput> & { day?: string } = {}
 
   const name = form.name.trim()
   if (name && name !== meal.name) patch.name = name
+  if (form.day && form.day !== meal.day) patch.day = form.day
   if (form.mealType !== meal.meal_type) patch.meal_type = form.mealType
   if (form.eatenAt !== (meal.eaten_at ?? '')) patch.eaten_at = form.eatenAt || null
 
