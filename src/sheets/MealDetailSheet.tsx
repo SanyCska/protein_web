@@ -27,6 +27,9 @@ const MEAL_TYPES = Object.entries(MEAL_TYPE_LABELS) as [MealType, string][]
 /** Ходовые доли: съел половину записанного, полторы порции, две. */
 const FACTORS = [0.5, 1.5, 2]
 
+/** Выше этого доля — опечатка: двадцать порций за раз не съедают. */
+const MAX_FACTOR = 20
+
 /** Умножить число в поле формы; пустое поле так и остаётся пустым. */
 function scaleField(value: string, factor: number): string {
   const parsed = toNumber(value)
@@ -60,6 +63,9 @@ export function MealDetailSheet({ mealId, onClose }: { mealId: number; onClose: 
   const deleteMeal = useDeleteMeal()
 
   const [form, setForm] = useState<MealForm | null>(null)
+  // Своя доля пересчёта: чипы закрывают ходовые случаи, но «съел 0,7 порции» бывает тоже.
+  const [factorDraft, setFactorDraft] = useState('')
+  const [factorError, setFactorError] = useState<string | null>(null)
 
   useEffect(() => {
     if (meal) setForm(formFromMeal(meal))
@@ -107,15 +113,47 @@ export function MealDetailSheet({ mealId, onClose }: { mealId: number; onClose: 
     })
   }
 
+  const applyDraft = () => {
+    const factor = toNumber(factorDraft)
+    if (factor === null || factor <= 0 || factor > MAX_FACTOR) {
+      setFactorError(`Доля должна быть больше нуля и не больше ${MAX_FACTOR}`)
+      return
+    }
+    setFactorError(null)
+    applyFactor(factor)
+    setFactorDraft('')
+  }
+
   const factorRow = (
-    <div className="factor-row">
-      <span className="factor-row__label">Пересчитать</span>
-      {FACTORS.map((factor) => (
-        <Chip key={factor} onClick={() => applyFactor(factor)}>
-          ×{num(factor, factor === 2 ? 0 : 1)}
-        </Chip>
-      ))}
-    </div>
+    <>
+      <div className="factor-row">
+        <span className="factor-row__label">Пересчитать ×</span>
+        <input
+          className="factor-row__input mn"
+          inputMode="decimal"
+          placeholder="0,7"
+          aria-label="Своя доля для пересчёта"
+          value={factorDraft}
+          onChange={(event) => setFactorDraft(event.target.value)}
+        />
+        <button
+          type="button"
+          className="btn btn--sm btn--neutral"
+          disabled={!factorDraft.trim()}
+          onClick={applyDraft}
+        >
+          Применить
+        </button>
+      </div>
+      <div className="preset-row">
+        {FACTORS.map((factor) => (
+          <Chip key={factor} onClick={() => applyFactor(factor)}>
+            ×{num(factor, factor === 2 ? 0 : 1)}
+          </Chip>
+        ))}
+      </div>
+      {factorError && <ErrorNote message={factorError} />}
+    </>
   )
 
   const items = form.items
