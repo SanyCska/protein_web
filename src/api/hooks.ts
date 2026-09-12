@@ -143,6 +143,14 @@ export function useDeleteMeal() {
   return useDataMutation((id: number) => api.deleteMeal(id))
 }
 
+export function useSetWeight(day: string) {
+  return useDataMutation((weight_kg: number) => api.setWeight(day, weight_kg))
+}
+
+export function useDeleteWeight(day: string) {
+  return useDataMutation(() => api.deleteWeight(day))
+}
+
 export function useAddWorkout(day: string) {
   return useDataMutation(
     (payload: {

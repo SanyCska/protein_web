@@ -258,3 +258,21 @@ button.event__card:hover {
   font-family: var(--font-mono);
   font-size: 9.5px;
 }
+
+/* ─── вес за день ─── */
+
+.weight-card__value {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.weight-card__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.weight-card__actions .btn {
+  flex: 1;
+}

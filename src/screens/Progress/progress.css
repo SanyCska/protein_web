@@ -163,3 +163,69 @@
   font-size: 10.5px;
   color: var(--color-neutral-500);
 }
+
+/* ─── график веса ─── */
+
+.weight-chart {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Своя система координат для линии и точек; min-height нужен, иначе svg растянет
+   контейнер по пропорции viewBox. */
+.weight-chart__plot {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.weight-chart__plot svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.weight-chart__line {
+  fill: none;
+  stroke: var(--color-accent);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.weight-chart__dot {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: var(--color-accent-300);
+}
+
+.weight-chart__scale {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 9.5px;
+  color: var(--color-neutral-600);
+  pointer-events: none;
+}
+
+.weight-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.weight-stats__item {
+  padding: 10px;
+  border-radius: var(--radius-tile);
+  background: var(--color-neutral-900);
+}

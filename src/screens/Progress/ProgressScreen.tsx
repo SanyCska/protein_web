@@ -10,7 +10,7 @@ import {
 } from '@/components/primitives'
 import { num, signed } from '@/lib/format'
 import { calorieBarColor, proteinBarColor } from '@/lib/nutrition'
-import { BarChart, NetChart, scaleMax } from './charts'
+import { BarChart, NetChart, WeightChart, scaleMax } from './charts'
 import './progress.css'
 
 const RANGES = [
@@ -96,6 +96,49 @@ export function ProgressScreen() {
             ))}
           </div>
         )}
+      </Card>
+
+      <Card>
+        <CardHead
+          title="Вес"
+          meta={
+            data.weight_avg !== null
+              ? `в среднем ${num(data.weight_avg, 1)} кг`
+              : 'нет взвешиваний'
+          }
+        />
+        <WeightChart days={data.days} values={data.weight} />
+        {data.weight_avg !== null && (
+          <div className="weight-stats">
+            <div className="weight-stats__item">
+              <div className="stat-tile__label">За период</div>
+              <div className="stat-tile__value mn">
+                {data.weight_change === null ? '—' : `${signed(data.weight_change, 1)} кг`}
+              </div>
+              <div className="stat-tile__hint">
+                {data.weight_change === null
+                  ? 'нужно хотя бы два взвешивания'
+                  : 'последнее взвешивание минус первое'}
+              </div>
+            </div>
+            <div className="weight-stats__item">
+              <div className="stat-tile__label">К прошлому периоду</div>
+              <div className="stat-tile__value mn">
+                {data.weight_delta === null ? '—' : `${signed(data.weight_delta, 1)} кг`}
+              </div>
+              <div className="stat-tile__hint">
+                {data.weight_delta === null
+                  ? 'тогда не взвешивались'
+                  : 'разница средних значений'}
+              </div>
+            </div>
+          </div>
+        )}
+        <p className="chart__footer" style={{ display: 'block', lineHeight: 1.5 }}>
+          {data.weight_days > 0
+            ? `Взвешиваний за период: ${data.weight_days} из ${data.days.length} дней.`
+            : 'Вес записывается в дневнике, карточкой под кольцами.'}
+        </p>
       </Card>
 
       <Card>

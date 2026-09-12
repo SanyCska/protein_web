@@ -73,6 +73,79 @@ export function BarChart({
  * Шкала берётся от самого большого отклонения — при фиксированном максимуме все дни
  * с крупным дефицитом упираются в край и выглядят одинаково.
  */
+/**
+ * Линия веса. Отдельный график, а не столбцы: между 74 и 76 кг столбики от нуля
+ * неразличимы, поэтому шкала строится по самим данным, а дни без взвешивания
+ * рвут линию, а не падают в ноль.
+ */
+export function WeightChart({
+  days,
+  values,
+  height = 132,
+}: {
+  days: string[]
+  values: (number | null)[]
+  height?: number
+}) {
+  const points = values
+    .map((value, index) => ({ value, index }))
+    .filter((point): point is { value: number; index: number } => point.value !== null)
+
+  if (points.length === 0) {
+    return <p className="footnote">Взвешиваний за период нет — записать вес можно в дневнике.</p>
+  }
+
+  const numbers = points.map((point) => point.value)
+  const low = Math.min(...numbers)
+  const high = Math.max(...numbers)
+  // Плоский период не должен превращаться в линию по краю: даём запас в полкило.
+  const pad = Math.max((high - low) * 0.2, 0.5)
+  const min = low - pad
+  const span = high + pad - min
+
+  const width = 100
+  const x = (index: number) =>
+    days.length > 1 ? (index / (days.length - 1)) * width : width / 2
+  const y = (value: number) => 100 - ((value - min) / span) * 100
+
+  const line = points.map((point) => `${x(point.index)},${y(point.value)}`).join(' ')
+
+  return (
+    <div className="weight-chart" style={{ height }}>
+      <div className="weight-chart__plot">
+        {/* Линия рисуется растянутым viewBox, а точки — обычными элементами поверх:
+            в неравномерно растянутой системе координат круг превратился бы в эллипс. */}
+        {points.length > 1 && (
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
+            <polyline className="weight-chart__line" points={line} />
+          </svg>
+        )}
+        {points.map((point) => (
+          <span
+            key={point.index}
+            className="weight-chart__dot"
+            style={{ left: `${x(point.index)}%`, top: `${y(point.value)}%` }}
+          />
+        ))}
+        <div className="weight-chart__scale mn" aria-hidden>
+          <span>{num(high, 1)}</span>
+          <span>{num(low, 1)}</span>
+        </div>
+      </div>
+      <div className="chart__axis">
+        {days.map((day, index) => (
+          <span key={day} className="chart__axis-label">
+            {axisLabel(day, index, days.length)}
+          </span>
+        ))}
+      </div>
+      <span className="sr-only">
+        Вес по дням: от {num(low, 1)} до {num(high, 1)} кг
+      </span>
+    </div>
+  )
+}
+
 export function NetChart({ days, values }: { days: string[]; values: number[] }) {
   const max = Math.max(...values.map(Math.abs), 1) * 1.05
 

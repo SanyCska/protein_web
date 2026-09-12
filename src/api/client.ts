@@ -120,6 +120,10 @@ export const api = {
   weekStrip: (day: string) => get<WeekStrip>(`/diary/${day}/week`),
 
   addMeal: (day: string, payload: MealInput) => post<Meal>(`/diary/${day}/meals`, payload),
+
+  setWeight: (day: string, weight_kg: number) =>
+    put<{ day: string; weight_kg: number }>(`/diary/${day}/weight`, { weight_kg }),
+  deleteWeight: (day: string) => del(`/diary/${day}/weight`),
   meal: (id: number) => get<Meal>(`/meals/${id}`),
   recentMeals: () => get<Meal[]>('/meals/recent'),
   updateMeal: (id: number, payload: Partial<MealInput> & { day?: string }) =>

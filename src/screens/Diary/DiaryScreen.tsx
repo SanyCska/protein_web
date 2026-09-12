@@ -9,6 +9,7 @@ import {
 } from '@/components/primitives'
 import { entriesLabel } from '@/lib/format'
 import { RingsCard } from './RingsCard'
+import { WeightCard } from './WeightCard'
 import { Timeline } from './Timeline'
 import { WeekStrip } from './WeekStrip'
 import './diary.css'
@@ -44,6 +45,8 @@ export function DiaryScreen() {
       {strip}
 
       <RingsCard totals={data.totals} norms={data.norms} />
+
+      <WeightCard day={day} weight={data.weight_kg} />
 
       <div className="diary-actions">
         <button type="button" className="btn btn--accent" onClick={() => openSheet('add')}>

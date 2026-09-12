@@ -182,6 +182,8 @@ export interface DayTotals {
 
 export interface DayView {
   day: string
+  /** Взвешивание за этот день; null — не записывали. */
+  weight_kg: number | null
   meals: Meal[]
   workouts: Workout[]
   supplements: Supplement[]
@@ -279,6 +281,14 @@ export interface Progress {
   protein: number[]
   burned: number[]
   net: number[]
+  /** Вес по дням; null — в этот день не взвешивались. */
+  weight: (number | null)[]
+  weight_avg: number | null
+  /** Изменение внутри периода: последнее взвешивание минус первое. */
+  weight_change: number | null
+  /** Насколько средний вес отличается от прошлого периода. */
+  weight_delta: number | null
+  weight_days: number
   norms: Norms
   avg_calories: number
   avg_protein: number

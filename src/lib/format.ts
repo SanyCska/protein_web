@@ -99,8 +99,8 @@ export function nutrientValue(value: number): string {
   return String(Math.round(value))
 }
 
-export function signed(value: number): string {
-  return value > 0 ? `+${num(value)}` : num(value)
+export function signed(value: number, digits = 0): string {
+  return value > 0 ? `+${num(value, digits)}` : num(value, digits)
 }
 
 export function pct(value: number, of: number): number {

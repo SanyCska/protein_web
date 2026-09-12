@@ -8,6 +8,7 @@ import {
   longDate,
   nutrientValue,
   parseDay,
+  signed,
   toDayString,
   toNumber,
   weekdayShort,
@@ -112,5 +113,18 @@ describe('doseValue', () => {
 
   it('ноль остаётся нулём', () => {
     expect(doseValue(0)).toBe('0')
+  })
+})
+
+describe('signed', () => {
+  it('плюс ставится только у прироста', () => {
+    expect(signed(3)).toBe('+3')
+    expect(signed(-3)).toBe('-3')
+    expect(signed(0)).toBe('0')
+  })
+
+  it('десятые нужны весу: 0,1 кг не должны превращаться в ноль', () => {
+    expect(signed(0.1, 1)).toBe('+0,1')
+    expect(signed(-0.4, 1)).toBe('-0,4')
   })
 })
