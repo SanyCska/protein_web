@@ -21,6 +21,7 @@ import type {
 import { Icon } from '@/components/Icon'
 import { MicrosEditor } from '@/components/MicrosEditor'
 import { Sheet } from '@/components/Sheet'
+import { TotalWeight } from '@/components/TotalWeight'
 import {
   Chip,
   ErrorNote,
@@ -133,6 +134,7 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
   } = useProducts(debouncedQuery, mode === 'search')
 
   const removedCount = Math.max((parsedItems?.length ?? 0) - (items?.length ?? 0), 0)
+  const parsedGrams = (parsedItems ?? []).reduce((sum, item) => sum + item.grams, 0)
 
   // Во сколько раз съеденное отличается от сохранённой порции продукта.
   const pickedBasis = picked?.portion_g ?? 0
@@ -461,6 +463,11 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
               {/* Название даёт модель, но состав можно поправить — тогда «омлет
                   с тостом» без тоста надо уметь переименовать. */}
               <Field label="Название блюда" value={parsedName} onChange={setParsedName} />
+              <TotalWeight
+                items={items}
+                onChange={setItems}
+                hint={`ИИ насчитал ${num(parsedGrams)} г на всё блюдо. Взвесили тарелку — впишите свой вес, граммовка разойдётся по продуктам пропорционально.`}
+              />
               {items.map((item, index) => (
                 <div className="parsed-item" key={`${item.name}-${index}`}>
                   <div className="parsed-item__body">

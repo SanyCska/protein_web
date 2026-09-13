@@ -5,6 +5,7 @@ import {
   guessMealType,
   portionFactor,
   portionFromPer100,
+  resizeItems,
   totalsFromItems,
 } from './nutrition'
 
@@ -143,5 +144,50 @@ describe('portionFactor', () => {
 
   it('ноль съеденного не обнуляет запись', () => {
     expect(portionFactor(100, 0)).toBe(1)
+  })
+})
+
+describe('resizeItems', () => {
+  const items = [
+    { name: 'Яйцо', grams: 150, per100: { calories_kcal: 155 } },
+    { name: 'Сыр', grams: 50, per100: { calories_kcal: 350 } },
+  ]
+
+  it('раскладывает новый вес пропорционально долям', () => {
+    const resized = resizeItems(items, 300)
+    expect(resized.map((i) => i.grams)).toEqual([225, 75])
+  })
+
+  it('сумма сходится ровно, остаток идёт в самый крупный ингредиент', () => {
+    const resized = resizeItems(items, 101)
+    expect(resized.reduce((sum, i) => sum + i.grams, 0)).toBe(101)
+    expect(resized[0]!.grams).toBeGreaterThan(resized[1]!.grams)
+  })
+
+  it('уменьшение работает так же', () => {
+    expect(resizeItems(items, 100).map((i) => i.grams)).toEqual([75, 25])
+  })
+
+  it('состав без граммовки делится поровну', () => {
+    const empty = [
+      { name: 'А', grams: 0, per100: {} },
+      { name: 'Б', grams: 0, per100: {} },
+    ]
+    expect(resizeItems(empty, 200).map((i) => i.grams)).toEqual([100, 100])
+  })
+
+  it('не трогает per100 и названия', () => {
+    const resized = resizeItems(items, 300)
+    expect(resized[0]!.name).toBe('Яйцо')
+    expect(resized[0]!.per100).toEqual({ calories_kcal: 155 })
+  })
+
+  it('пустой состав и отрицательный вес оставляют всё как есть', () => {
+    expect(resizeItems([], 300)).toEqual([])
+    expect(resizeItems(items, -5)).toEqual(items)
+  })
+
+  it('ноль обнуляет граммовку, а не ломает пропорции', () => {
+    expect(resizeItems(items, 0).map((i) => i.grams)).toEqual([0, 0])
   })
 })

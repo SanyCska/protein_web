@@ -7,6 +7,7 @@ import type { MealType } from '@/api/types'
 import { Icon } from '@/components/Icon'
 import { MicrosEditor } from '@/components/MicrosEditor'
 import { Sheet } from '@/components/Sheet'
+import { TotalWeight } from '@/components/TotalWeight'
 import {
   Chip,
   ErrorNote,
@@ -298,10 +299,15 @@ export function MealDetailSheet({ mealId, onClose }: { mealId: number; onClose: 
               )}
             </div>
           ))}
+          <TotalWeight
+            items={items}
+            onChange={(next) => patch({ items: next })}
+            hint="Поправьте общий вес — граммовка разойдётся по продуктам пропорционально."
+          />
           {factorRow}
           <p className="footnote">
             КБЖУ и витамины пересчитываются из состава, поэтому править их отдельно нельзя —
-            меняйте граммовку или пересчитайте всё блюдо долей.
+            меняйте граммовку, общий вес или долю.
           </p>
         </section>
       ) : (

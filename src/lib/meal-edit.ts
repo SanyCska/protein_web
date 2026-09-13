@@ -1,5 +1,5 @@
 import type { Meal, MealInput, MealItem, MealType, Micros, PortionUnit } from '@/api/types'
-import { toNumber } from './format'
+import { num, toNumber } from './format'
 
 /** Состояние формы правки блюда: числа держим строками, поле можно очистить. */
 export interface MealForm {
@@ -62,7 +62,12 @@ export function mealPatch(meal: Meal, form: MealForm): Partial<MealInput> & { da
 
   // Состав — источник истины для итогов, поэтому КБЖУ при нём не правятся вовсе.
   if (form.items !== null) {
-    if (!sameItems(form.items, meal.items)) patch.items = form.items
+    if (!sameItems(form.items, meal.items)) {
+      patch.items = form.items
+      // Подпись состава в ленте дня — отдельное текстовое поле, и без неё лента
+      // показывала бы старую граммовку рядом с новыми итогами.
+      patch.ingredients = form.items.map((item) => `${item.name} ${num(item.grams)} г`).join(', ')
+    }
     return patch
   }
 

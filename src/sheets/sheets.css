@@ -369,29 +369,3 @@
   gap: 10px;
 }
 
-/* Доли записи: «съел половину того, что записал». */
-.factor-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.factor-row__label {
-  font-size: 11px;
-  color: var(--color-neutral-600);
-}
-
-.factor-row__input {
-  width: 68px;
-  padding: 7px 9px;
-  border-radius: var(--radius-tile);
-  background: var(--color-bg);
-  box-shadow: 0 0 0 1px var(--color-neutral-800);
-  font-size: 12.5px;
-  text-align: center;
-}
-
-.factor-row__input:focus-visible {
-  box-shadow: 0 0 0 1px var(--color-accent);
-}

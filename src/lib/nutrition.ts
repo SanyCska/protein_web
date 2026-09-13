@@ -67,6 +67,28 @@ export function portionFactor(basis: number | null, eaten: number | null): numbe
   return eaten / basis
 }
 
+/**
+ * Разложить заданный общий вес блюда по ингредиентам пропорционально их долям.
+ *
+ * ИИ считает граммовку каждой позиции сам, но взвесить тарелку целиком проще, чем
+ * каждый кусок. Остаток от округления кладём в самый крупный ингредиент: сумма обязана
+ * сойтись ровно, иначе поле общего веса и список под ним разойдутся на глазах.
+ */
+export function resizeItems(items: MealItem[], totalGrams: number): MealItem[] {
+  if (items.length === 0 || totalGrams < 0) return items
+  const current = items.reduce((sum, item) => sum + item.grams, 0)
+  // Состав без граммовки делим поровну: пропорций тут нет, а ноль — не ответ.
+  const shares = current > 0 ? items.map((i) => i.grams / current) : items.map(() => 1 / items.length)
+
+  const scaled = shares.map((share) => Math.round(totalGrams * share))
+  const residual = Math.round(totalGrams) - scaled.reduce((sum, value) => sum + value, 0)
+  if (residual !== 0) {
+    const biggest = scaled.indexOf(Math.max(...scaled))
+    scaled[biggest] = Math.max((scaled[biggest] ?? 0) + residual, 0)
+  }
+  return items.map((item, index) => ({ ...item, grams: scaled[index] ?? 0 }))
+}
+
 export interface PortionValues {
   calories_kcal: number
   protein_g: number

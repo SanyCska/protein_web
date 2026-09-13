@@ -79,16 +79,22 @@ describe('mealPatch', () => {
     ],
   })
 
-  it('видит правку граммовки и названия ингредиента', () => {
+  it('видит правку граммовки и обновляет подпись состава', () => {
     const form = formFromMeal(withItems)
     const items = [{ ...form.items![0]!, grams: 150 }, form.items![1]!]
-    expect(mealPatch(withItems, { ...form, items })).toEqual({ items })
+    expect(mealPatch(withItems, { ...form, items })).toEqual({
+      items,
+      ingredients: 'Яйцо 150 г, Сыр 50 г',
+    })
   })
 
   it('видит удалённый ингредиент', () => {
     const form = formFromMeal(withItems)
     const items = [form.items![0]!]
-    expect(mealPatch(withItems, { ...form, items })).toEqual({ items })
+    expect(mealPatch(withItems, { ...form, items })).toEqual({
+      items,
+      ingredients: 'Яйцо 100 г',
+    })
   })
 
   it('при составе КБЖУ в патч не попадают', () => {
