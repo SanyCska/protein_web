@@ -276,3 +276,65 @@ button.event__card:hover {
 .weight-card__actions .btn {
   flex: 1;
 }
+
+/* ─── навигация по неделям ─── */
+
+.week-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 14px 8px;
+  color: var(--color-neutral-500);
+}
+
+.week-nav__arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-tile);
+  background: var(--color-neutral-900);
+  color: var(--color-neutral-400);
+}
+
+.week-nav__arrow:disabled {
+  opacity: 0.35;
+}
+
+.week-nav__title {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.week-nav__range {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+/* Нативный календарь: кнопка видимая, сам input прозрачный поверх неё. */
+.week-nav__jump {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-tile);
+  background: var(--color-neutral-900);
+  color: var(--color-neutral-400);
+}
+
+.week-nav__jump input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+}

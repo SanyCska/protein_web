@@ -11,6 +11,7 @@ import {
   signed,
   toDayString,
   toNumber,
+  weekRange,
   weekdayShort,
 } from './format'
 
@@ -126,5 +127,15 @@ describe('signed', () => {
   it('десятые нужны весу: 0,1 кг не должны превращаться в ноль', () => {
     expect(signed(0.1, 1)).toBe('+0,1')
     expect(signed(-0.4, 1)).toBe('-0,4')
+  })
+})
+
+describe('weekRange', () => {
+  it('неделя внутри месяца пишется одним названием', () => {
+    expect(weekRange('2026-09-07')).toBe('7 — 13 сентября')
+  })
+
+  it('на стыке месяцев названия оба', () => {
+    expect(weekRange('2026-09-28')).toBe('28 сентября — 4 октября')
   })
 })

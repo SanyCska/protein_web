@@ -72,6 +72,15 @@ export function longDate(day: string): string {
 }
 
 /** «10 августа» — для подзаголовков карточек. */
+/** «8 — 14 сентября» или «29 сентября — 5 октября», если неделя на стыке месяцев. */
+export function weekRange(monday: string): string {
+  const start = parseDay(monday)
+  const end = parseDay(addDays(monday, 6))
+  const endLabel = `${end.getDate()} ${MONTHS_GENITIVE[end.getMonth()]}`
+  if (start.getMonth() === end.getMonth()) return `${start.getDate()} — ${endLabel}`
+  return `${start.getDate()} ${MONTHS_GENITIVE[start.getMonth()]} — ${endLabel}`
+}
+
 export function shortDate(day: string): string {
   const date = parseDay(day)
   return `${date.getDate()} ${MONTHS_GENITIVE[date.getMonth()]}`
