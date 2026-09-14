@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 
 import type { MealItem } from '@/api/types'
-import { toNumber } from '@/lib/format'
+import { num, roundTo } from '@/lib/format'
 import { resizeItems } from '@/lib/nutrition'
+import { PortionAmount, pickedFactor, type PortionPickUnit } from './PortionAmount'
 import { ErrorNote } from './primitives'
 import './ui.css'
 
@@ -10,57 +11,68 @@ import './ui.css'
 const MAX_TOTAL = 10000
 
 /**
- * Общий вес блюда с разбором: тарелку проще взвесить целиком, чем каждый кусок,
- * поэтому правится сумма, а граммовка расходится по ингредиентам пропорционально.
+ * Сколько съедено из блюда с разбором. ИИ считает граммовку каждой позиции сам,
+ * но съесть можно половину тарелки или 70 г из распознанных 130 — вес задаётся
+ * целиком, а по ингредиентам расходится пропорционально их долям.
  */
 export function TotalWeight({
   items,
   onChange,
+  label = 'Съел сейчас',
   hint,
 }: {
   items: MealItem[]
   onChange: (items: MealItem[]) => void
+  label?: string
   hint?: string
 }) {
   const current = Math.round(items.reduce((sum, item) => sum + item.grams, 0))
-  const [draft, setDraft] = useState(String(current))
+  const [unit, setUnit] = useState<PortionPickUnit>('г')
+  const [amount, setAmount] = useState(String(current))
   const [error, setError] = useState<string | null>(null)
 
   // Правка граммовки степпером меняет сумму — поле должно за ней успевать.
-  useEffect(() => setDraft(String(current)), [current])
+  useEffect(() => {
+    setAmount((previous) => (unit === 'часть' ? previous : String(current)))
+  }, [current, unit])
+
+  const factor = pickedFactor(amount, unit, current)
+  const target = roundTo(current * factor, 0)
 
   const apply = () => {
-    const value = toNumber(draft)
-    if (value === null || value > MAX_TOTAL) {
-      setError(`Вес должен быть числом не больше ${MAX_TOTAL} г`)
+    if (target > MAX_TOTAL) {
+      setError(`Вес должен быть не больше ${MAX_TOTAL} г`)
       return
     }
     setError(null)
-    onChange(resizeItems(items, value))
+    onChange(resizeItems(items, target))
+    if (unit === 'часть') setAmount('1')
   }
 
   return (
     <>
-      <div className="factor-row">
-        <span className="factor-row__label">Общий вес, г</span>
-        <input
-          className="factor-row__input mn"
-          inputMode="decimal"
-          aria-label="Общий вес блюда, г"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => event.key === 'Enter' && apply()}
-        />
-        <button
-          type="button"
-          className="btn btn--sm btn--neutral"
-          disabled={draft.trim() === String(current)}
-          onClick={apply}
-        >
-          Разложить
-        </button>
-      </div>
-      {hint && <p className="footnote">{hint}</p>}
+      <PortionAmount
+        label={label}
+        amount={amount}
+        unit={unit}
+        basis={current > 0 ? current : null}
+        onChange={(nextAmount, nextUnit) => {
+          setAmount(nextAmount)
+          setUnit(nextUnit)
+        }}
+        counted={`${num(target)} г`}
+        action={
+          <button
+            type="button"
+            className="btn btn--sm btn--neutral"
+            disabled={target === current}
+            onClick={apply}
+          >
+            Разложить по продуктам
+          </button>
+        }
+        hint={hint}
+      />
       {error && <ErrorNote message={error} />}
     </>
   )

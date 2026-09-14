@@ -596,3 +596,12 @@
 .factor-row__input:focus-visible {
   box-shadow: 0 0 0 1px var(--color-accent);
 }
+
+.portion-amount__action {
+  display: flex;
+  margin-top: 9px;
+}
+
+.portion-amount__action .btn {
+  flex: 1;
+}

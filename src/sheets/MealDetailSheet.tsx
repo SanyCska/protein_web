@@ -302,7 +302,8 @@ export function MealDetailSheet({ mealId, onClose }: { mealId: number; onClose: 
           <TotalWeight
             items={items}
             onChange={(next) => patch({ items: next })}
-            hint="Поправьте общий вес — граммовка разойдётся по продуктам пропорционально."
+            label="Съедено"
+            hint="Впишите количество или долю — граммовка разойдётся по продуктам пропорционально."
           />
           {factorRow}
           <p className="footnote">

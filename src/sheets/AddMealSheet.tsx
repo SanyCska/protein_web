@@ -21,6 +21,7 @@ import type {
 import { Icon } from '@/components/Icon'
 import { MicrosEditor } from '@/components/MicrosEditor'
 import { Sheet } from '@/components/Sheet'
+import { PortionAmount, pickedFactor, type PortionPickUnit } from '@/components/PortionAmount'
 import { TotalWeight } from '@/components/TotalWeight'
 import {
   Chip,
@@ -32,12 +33,7 @@ import {
   Stepper,
 } from '@/components/primitives'
 import { addDays, num, nowTime, roundTo, shortDate, today, toNumber } from '@/lib/format'
-import {
-  guessMealType,
-  portionFactor,
-  portionFromPer100,
-  totalsFromItems,
-} from '@/lib/nutrition'
+import { guessMealType, portionFromPer100, totalsFromItems } from '@/lib/nutrition'
 import './sheets.css'
 
 type Mode = 'ai' | 'search' | 'recent' | 'manual'
@@ -103,8 +99,9 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
   const [picked, setPicked] = useState<Product | null>(null)
   const [pickedAmount, setPickedAmount] = useState('')
   // Половину банки удобнее задать долей порции, а недоеденную тарелку — граммами.
-  const [pickedMode, setPickedMode] = useState<'amount' | 'portions'>('amount')
+  const [pickedMode, setPickedMode] = useState<PortionPickUnit>('г')
   const [portionUnit, setPortionUnit] = useState<PortionUnit>('г')
+  const [eatenUnit, setEatenUnit] = useState<PortionPickUnit>('г')
   // Состав на 100 г со снятой этикетки: пока он есть, правка граммовки пересчитывает
   // КБЖУ сама. Ручная правка любого макроса его сбрасывает — дальше цифры пользователя.
   const [labelPer100, setLabelPer100] = useState<Per100 | null>(null)
@@ -138,27 +135,16 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
 
   // Во сколько раз съеденное отличается от сохранённой порции продукта.
   const pickedBasis = picked?.portion_g ?? 0
-  const pickedValue = toNumber(pickedAmount)
-  const pickedFactor =
-    pickedMode === 'portions'
-      ? (pickedValue && pickedValue > 0 ? pickedValue : 1)
-      : portionFactor(pickedBasis, pickedValue)
-  const pickedGrams = roundTo(pickedBasis * pickedFactor, 1)
-
-  /** Смена меры не должна менять количество: пересчитываем поле под новую. */
-  const switchPickedMode = (mode: 'amount' | 'portions') => {
-    setPickedMode(mode)
-    if (mode === 'portions') setPickedAmount(String(roundTo(pickedFactor, 2)))
-    else setPickedAmount(String(pickedGrams))
-  }
+  const pickedProductFactor = pickedFactor(pickedAmount, pickedMode, pickedBasis || null)
 
   const time = nowTime()
 
   // КБЖУ в форме описывают порцию-основу («данные на 100 г»), а засчитать надо
   // съеденное. Пустое «съел» — значит съедена ровно та порция, что указана.
   const basisAmount = toNumber(manual.portion)
-  const eatenAmount = toNumber(manual.eaten) ?? basisAmount
-  const eatenFactor = portionFactor(basisAmount, eatenAmount)
+  const eatenFactor = pickedFactor(manual.eaten, eatenUnit, basisAmount)
+  // Порция записи — это то, что съели: доля от основы или введённое количество.
+  const eatenAmount = basisAmount ? roundTo(basisAmount * eatenFactor, 1) : toNumber(manual.eaten)
   const manualBasis = {
     calories_kcal: toNumber(manual.kcal),
     protein_g: toNumber(manual.protein) ?? 0,
@@ -358,6 +344,7 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
       fiber: result.fiber_g ? String(result.fiber_g) : '',
     })
     setPortionUnit(result.portion_unit)
+    setEatenUnit(result.portion_unit)
     setManualMicros(result.micros)
     setLabelPer100(result.per100)
     setFormError(null)
@@ -466,7 +453,7 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
               <TotalWeight
                 items={items}
                 onChange={setItems}
-                hint={`ИИ насчитал ${num(parsedGrams)} г на всё блюдо. Взвесили тарелку — впишите свой вес, граммовка разойдётся по продуктам пропорционально.`}
+                hint={`ИИ насчитал ${num(parsedGrams)} г на всё блюдо. Съели меньше — впишите своё количество или долю, и граммовка разойдётся по продуктам пропорционально.`}
               />
               {items.map((item, index) => (
                 <div className="parsed-item" key={`${item.name}-${index}`}>
@@ -577,49 +564,24 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
                     )} ккал.`
                   : `Сохранено ${num(picked.calories_kcal ?? 0)} ккал на порцию; её вес не указан.`}
               </p>
-              {/* Без веса порции граммы считать не от чего — остаются только доли. */}
-              {pickedBasis > 0 && (
-                <div className="sheet-segment">
-                  <Segment
-                    quiet
-                    label="Чем меряем съеденное"
-                    options={[
-                      { value: 'amount' as const, label: picked.portion_unit },
-                      { value: 'portions' as const, label: 'порции' },
-                    ]}
-                    value={pickedMode}
-                    onChange={switchPickedMode}
-                  />
-                </div>
-              )}
+              <PortionAmount
+                amount={pickedAmount}
+                unit={pickedMode}
+                basis={pickedBasis > 0 ? pickedBasis : null}
+                basisUnit={picked.portion_unit}
+                onChange={(amount, unit) => {
+                  setPickedAmount(amount)
+                  setPickedMode(unit)
+                }}
+                counted={`${num((picked.calories_kcal ?? 0) * pickedProductFactor)} ккал`}
+              />
 
-              <div className="portion-field">
-                <Field
-                  label={
-                    pickedMode === 'portions'
-                      ? 'Съел порций'
-                      : `Съел сейчас, ${picked.portion_unit}`
-                  }
-                  value={pickedAmount}
-                  mono
-                  accent
-                  inputMode="decimal"
-                  onChange={setPickedAmount}
-                />
-                <div className="field">
-                  <span className="field__label">Засчитаем</span>
-                  <div className="field__input serving-unit mn">
-                    {num((picked.calories_kcal ?? 0) * pickedFactor)} ккал
-                  </div>
-                </div>
-              </div>
-
-              {pickedMode === 'portions' && (
+              {pickedMode === 'часть' && (
                 <div className="preset-row">
                   {PORTION_PRESETS.map((preset) => (
                     <Chip
                       key={preset}
-                      selected={pickedValue === preset}
+                      selected={toNumber(pickedAmount) === preset}
                       onClick={() => setPickedAmount(String(preset))}
                     >
                       {num(preset, 1)}
@@ -628,19 +590,11 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
                 </div>
               )}
 
-              <p className="footnote">
-                {pickedMode !== 'portions'
-                  ? `Это ${num(pickedFactor, 2)} от сохранённой порции.`
-                  : pickedBasis > 0
-                    ? `Это ${num(pickedGrams)} ${picked.portion_unit}.`
-                    : 'Доля считается от сохранённых КБЖУ: 0,5 — половина того, что записано.'}
-              </p>
-
               <button
                 type="button"
                 className="btn btn--sm btn--accent btn--block"
                 disabled={addMeal.isPending}
-                onClick={() => addProduct(picked, pickedFactor)}
+                onClick={() => addProduct(picked, pickedProductFactor)}
               >
                 {addMeal.isPending ? 'Добавляю…' : 'Добавить в день'}
               </button>
@@ -666,10 +620,10 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
                   // сохранённых значений работает и там — «съел полпорции».
                   setPicked(product)
                   if (product.portion_g) {
-                    setPickedMode('amount')
+                    setPickedMode(product.portion_unit)
                     setPickedAmount(String(product.portion_g))
                   } else {
-                    setPickedMode('portions')
+                    setPickedMode('часть')
                     setPickedAmount('1')
                   }
                 }}
@@ -810,30 +764,25 @@ export function AddMealSheet({ day, onClose }: { day: string; onClose: () => voi
           </div>
           <section className="sheet-section">
             <h3 className="section-label sheet-section__label">Сколько съедено</h3>
-            <div className="portion-field">
-              <Field
-                label={`Съел сейчас, ${portionUnit}`}
-                value={manual.eaten}
-                mono
-                accent
-                inputMode="decimal"
-                onChange={(eaten) => setManual((form) => ({ ...form, eaten }))}
-              />
-              <div className="field">
-                <span className="field__label">Засчитаем</span>
-                <div className="field__input serving-unit mn">
-                  {num(manualEaten.calories_kcal ?? 0)} ккал
-                </div>
-              </div>
-            </div>
-            <p className="footnote">
-              {eatenFactor === 1
-                ? 'Пусто — засчитаем ровно ту порцию, на которую указаны данные.'
-                : `Это ${Math.round(eatenFactor * 100)}% от указанной порции: Б${num(
-                    manualEaten.protein_g,
-                    1,
-                  )} Ж${num(manualEaten.fat_g ?? 0, 1)} У${num(manualEaten.carbs_g ?? 0, 1)}.`}
-            </p>
+            <PortionAmount
+              amount={manual.eaten}
+              unit={eatenUnit}
+              basis={basisAmount}
+              basisUnit={portionUnit}
+              onChange={(eaten, unit) => {
+                setManual((form) => ({ ...form, eaten }))
+                setEatenUnit(unit)
+              }}
+              counted={`${num(manualEaten.calories_kcal ?? 0)} ккал`}
+              hint={
+                eatenFactor === 1
+                  ? 'Пусто — засчитаем ровно ту порцию, на которую указаны данные.'
+                  : `Это ${Math.round(eatenFactor * 100)}% от указанной порции: Б${num(
+                      manualEaten.protein_g,
+                      1,
+                    )} Ж${num(manualEaten.fat_g ?? 0, 1)} У${num(manualEaten.carbs_g ?? 0, 1)}.`
+              }
+            />
           </section>
 
           <label className="checkbox-row">
