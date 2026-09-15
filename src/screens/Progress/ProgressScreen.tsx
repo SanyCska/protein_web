@@ -8,7 +8,7 @@ import {
   LoadingScreen,
   Segment,
 } from '@/components/primitives'
-import { num, signed } from '@/lib/format'
+import { num, plural, signed } from '@/lib/format'
 import { calorieBarColor, proteinBarColor } from '@/lib/nutrition'
 import { BarChart, NetChart, WeightChart, scaleMax } from './charts'
 import './progress.css'
@@ -96,6 +96,41 @@ export function ProgressScreen() {
             ))}
           </div>
         )}
+      </Card>
+
+      <Card>
+        <CardHead
+          title="Шаги"
+          meta={
+            data.steps_avg !== null
+              ? `в среднем ${num(data.steps_avg)} в день`
+              : 'нет записей'
+          }
+        />
+        <BarChart
+          days={data.days}
+          values={data.steps.map((value) => value ?? 0)}
+          height={86}
+          max={scaleMax(
+            data.steps.map((value) => value ?? 0),
+            12000,
+          )}
+          colorOf={() => 'var(--color-accent-400)'}
+          showValues={false}
+        />
+        <p className="chart__footer" style={{ display: 'block', lineHeight: 1.5 }}>
+          {data.steps_days > 0 ? (
+            <>
+              Всего {num(data.steps_total)} шагов за {data.steps_days}{' '}
+              {plural(data.steps_days, ['день', 'дня', 'дней'])} с записью
+              {data.steps_delta !== null &&
+                `; ${signed(data.steps_delta)} в день к прошлому периоду`}
+              .
+            </>
+          ) : (
+            'Записывайте шаги в дневнике — здесь появится график и среднее за период.'
+          )}
+        </p>
       </Card>
 
       <Card>

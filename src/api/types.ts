@@ -184,6 +184,8 @@ export interface DayView {
   day: string
   /** Взвешивание за этот день; null — не записывали. */
   weight_kg: number | null
+  /** Шаги за этот день; null — не записывали. */
+  steps: number | null
   meals: Meal[]
   workouts: Workout[]
   supplements: Supplement[]
@@ -289,6 +291,13 @@ export interface Progress {
   /** Насколько средний вес отличается от прошлого периода. */
   weight_delta: number | null
   weight_days: number
+  /** Шаги по дням; null — в этот день не записывали. */
+  steps: (number | null)[]
+  steps_avg: number | null
+  steps_total: number
+  /** Насколько среднее отличается от прошлого периода. */
+  steps_delta: number | null
+  steps_days: number
   norms: Norms
   avg_calories: number
   avg_protein: number

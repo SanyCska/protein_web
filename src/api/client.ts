@@ -124,6 +124,9 @@ export const api = {
   setWeight: (day: string, weight_kg: number) =>
     put<{ day: string; weight_kg: number }>(`/diary/${day}/weight`, { weight_kg }),
   deleteWeight: (day: string) => del(`/diary/${day}/weight`),
+  setSteps: (day: string, steps: number) =>
+    put<{ day: string; steps: number }>(`/diary/${day}/steps`, { steps }),
+  deleteSteps: (day: string) => del(`/diary/${day}/steps`),
   meal: (id: number) => get<Meal>(`/meals/${id}`),
   recentMeals: () => get<Meal[]>('/meals/recent'),
   updateMeal: (id: number, payload: Partial<MealInput> & { day?: string }) =>

@@ -151,6 +151,14 @@ export function useDeleteWeight(day: string) {
   return useDataMutation(() => api.deleteWeight(day))
 }
 
+export function useSetSteps(day: string) {
+  return useDataMutation((steps: number) => api.setSteps(day, steps))
+}
+
+export function useDeleteSteps(day: string) {
+  return useDataMutation(() => api.deleteSteps(day))
+}
+
 export function useAddWorkout(day: string) {
   return useDataMutation(
     (payload: {
